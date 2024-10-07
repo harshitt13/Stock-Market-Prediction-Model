@@ -1,0 +1,10 @@
+yfinance
+keras
+tensorflow
+numpy
+pandas
+scikit-learn
+
+
+You can run the command given below in terminal to install all necessary libraries.
+pip install yfinance keras tensorflow numpy pandas scikit-learn
