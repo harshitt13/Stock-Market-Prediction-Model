@@ -58,11 +58,11 @@ def fetch_and_save_stock_data(ticker: str, start_date: str, end_date: str, filen
         stock_data['ROE'] = roe
         stock_data['P/E'] = pe_ratio
 
-        # 5. Forward fill missing values
+        # 5. Forward fill missing value
         stock_data.fillna(method='ffill', inplace=True)  
         stock_data.drop(columns=['Year'], inplace=True)  # Remove Year column
 
-# Save to CSV
+# Save to CSV File
         data_dir = 'data'
         if not os.path.exists(data_dir):
             os.makedirs(data_dir)
@@ -75,6 +75,6 @@ def fetch_and_save_stock_data(ticker: str, start_date: str, end_date: str, filen
 
 if __name__ == "__main__":
     ticker_symbol = 'AAPL'
-    start_date = '2020-01-01'
+    start_date = '2020-01-01' 
     end_date = '2023-01-01'
     fetch_and_save_stock_data(ticker_symbol, start_date, end_date)
