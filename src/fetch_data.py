@@ -1,7 +1,10 @@
+# Description: Fetch stock price data, financial data, and other metrics for a given stock ticker and save it to a CSV file.
+# Libraries Used
 import yfinance as yf
 import pandas as pd
 import os
 from typing import Optional
+
 
 def fetch_and_save_stock_data(ticker: str, start_date: str, end_date: str, filename: str = "stock_data.csv") -> None:
     try:
