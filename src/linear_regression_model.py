@@ -12,7 +12,7 @@ import os
 
 
 def main():
-    # Load the data
+    # Load the data from the CSV File
     data = pd.read_csv('data/stock_data.csv')
 
     # Display the first few rows to check the data
