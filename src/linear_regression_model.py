@@ -1,4 +1,5 @@
 # Description: This script trains a linear regression model to predict stock prices based on historical data.
+
 # Libraries Used
 import pandas as pd
 from sklearn.model_selection import train_test_split
