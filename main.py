@@ -29,7 +29,7 @@ def load_stock_data() -> pd.DataFrame:
     print(f"Loading stock data from {DATA_PATH}...")
     return pd.read_csv(DATA_PATH)
 
-def load_or_train_lr_model(stock_data: pd.DataFrame) -> LinearRegressionModel:
+def load_lr_model(stock_data: pd.DataFrame) -> LinearRegressionModel:
 # Load Linear Regression model if it exists, otherwise return None.
     if not os.path.exists(LR_MODEL_PATH):
         print(f"No Linear Regression model found at {LR_MODEL_PATH}")
@@ -38,7 +38,7 @@ def load_or_train_lr_model(stock_data: pd.DataFrame) -> LinearRegressionModel:
         print(f"Loading Linear Regression model from {LR_MODEL_PATH}...")
         return joblib.load(LR_MODEL_PATH)
 
-def load_or_train_lstm_model(stock_data: pd.DataFrame) -> LSTMModel:
+def load_lstm_model(stock_data: pd.DataFrame) -> LSTMModel:
 # Load LSTM model if it exists, otherwise return None.
     lstm_model = LSTMModel(stock_data)
     if not os.path.exists(LSTM_MODEL_PATH):
@@ -50,12 +50,12 @@ def load_or_train_lstm_model(stock_data: pd.DataFrame) -> LSTMModel:
     return lstm_model
 
 def main() -> None:
-# Main function to fetch data, train/load models, and evaluate them.
+# Main function to fetch data, load models, and evaluate them.
     try:
         fetch_data_if_needed()
         stock_data = load_stock_data()
-        lr_model = load_or_train_lr_model(stock_data)
-        lstm_model = load_or_train_lstm_model(stock_data)
+        lr_model = load_lr_model(stock_data)
+        lstm_model = load_lstm_model(stock_data)
         print("Evaluating models...")
         evaluate_models(lr_model, lstm_model, stock_data)
     except Exception as e:
