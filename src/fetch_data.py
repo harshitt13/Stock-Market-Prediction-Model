@@ -1,4 +1,5 @@
 # Description: Fetch stock price data, financial data, and other metrics for a given stock ticker and save it to a CSV file.
+
 # Libraries Used
 import yfinance as yf
 import pandas as pd
@@ -58,7 +59,7 @@ def fetch_and_save_stock_data(ticker: str, start_date: str, end_date: str, filen
         stock_data['ROE'] = roe
         stock_data['P/E'] = pe_ratio
 
-        # 5. Forward fill missing value
+# Forward fill missing value
         stock_data.fillna(method='ffill', inplace=True)  
         stock_data.drop(columns=['Year'], inplace=True)  # Remove Year column
 
