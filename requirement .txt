@@ -9,5 +9,13 @@ Joblib - For saving and loading Linear Regression models.
 Tqdm - For displaying progress bars during model training
 Typing - For  specifying the types of variables, function parameters, and return values, improving code readability and type-checking during development
 
+textblob
+vaderSentiment
+transformers
+requests
+beautifulsoup4
+nltk
+
+
 You can run the command given below in terminal to install all necessary libraries.
 pip install torch pandas numpy matplotlib scikit-learn yfinance joblib tqdm typing
