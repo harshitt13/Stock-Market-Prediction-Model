@@ -8,14 +8,12 @@ Yfinance - For fetching historical stock data.
 Joblib - For saving and loading Linear Regression models.
 Tqdm - For displaying progress bars during model training
 Typing - For  specifying the types of variables, function parameters, and return values, improving code readability and type-checking during development
+TextBlob - For simple text processing, including sentiment analysis, noun phrase extraction, and part-of-speech tagging.
+VADER Sentiment - For sentiment analysis, specifically designed to analyze the sentiment of social media content and short text.
+Transformers - For leveraging pre-trained models for natural language processing tasks like text generation, classification, and translation.
+Requests - For making HTTP requests to interact with APIs and fetch data from websites.
+BeautifulSoup4 - For parsing and extracting data from HTML and XML files, often used for web scraping.
+NLTK - For natural language processing tasks, including tokenization, stemming, lemmatization, and text classification.
 
-textblob
-vaderSentiment
-transformers
-requests
-beautifulsoup4
-nltk
-
-
-You can run the command given below in terminal to install all necessary libraries.
-pip install torch pandas numpy matplotlib scikit-learn yfinance joblib tqdm typing
+You can run the command given below in terminal to install all necessary libraries at once.
+pip install torch pandas numpy matplotlib scikit-learn yfinance joblib tqdm typing textblob vaderSentiment transformers requests beautifulsoup4 nltk
