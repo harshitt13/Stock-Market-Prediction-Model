@@ -8,7 +8,7 @@ def fetch_stock_data(ticker_symbol, start_date, end_date):
     Fetch stock data and financial metrics using yfinance
     
     Args:
-        ticker_symbol (str): Stock ticker symbol (e.g., 'AAPL')
+        ticker_symbol (str): Stock ticker symbol
         start_date (str): Start date in YYYY-MM-DD format
         end_date (str): End date in YYYY-MM-DD format (defaults to current date)
     """
