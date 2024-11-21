@@ -12,10 +12,7 @@ def fetch_stock_data(ticker_symbol, start_date, end_date):
         start_date (str): Start date in YYYY-MM-DD format
         end_date (str): End date in YYYY-MM-DD format (defaults to current date)
     """
-    # Create data directory if it doesn't exist
-    if not os.path.exists('data'):
-        os.makedirs('data')
-    
+
     # Set end date to current date if not specified
     if end_date is None:
         end_date = datetime.now().strftime('%Y-%m-%d')
