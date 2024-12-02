@@ -16,7 +16,7 @@ START_DATE = '2020-01-01'  # Start date for fetching stock data
 END_DATE = '2023-01-01'  # End date for fetching stock data
 DATA_PATH = 'data/stock_data.csv'  # Path to save fetched stock data
 LR_MODEL_PATH = 'models/linear_regression_model.pkl'  # Path to save/load Linear Regression model
-LSTM_MODEL_PATH = 'models/lstm_model.pth'  # Path to save/load LSTM model
+LSTM_MODEL_PATH = 'models/lstm_model.h5'  # Path to save/load LSTM model
 
 def fetch_data_if_needed() -> None:
 # Fetch stock data if it does not already exist.

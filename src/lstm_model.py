@@ -1,9 +1,11 @@
+import numpy as np
+import pandas as pd
+import os
+import matplotlib.pyplot as plt
 from tensorflow.keras.layers import LSTM, Dense
 from tensorflow.keras.models import Sequential
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
-import numpy as np
-import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 
 # Hyperparameters
@@ -82,6 +84,20 @@ for unit in layers:
                 best_params = (unit, epoch, batch_size)
                 print(f"New best model with params: {best_params} and MSE: {best_mse}")
 
+def save_plot(y_test_scaled, predictions):
+    # Plot Stock Price Prediction Using LSTM
+    plt.figure(figsize=(16, 8))
+    plt.title('Stock Price Prediction Using LSTM')
+    plt.plot(df.index[-len(y_test_scaled):], y_test_scaled, label='Actual Price')
+    plt.plot(df.index[-len(y_test_scaled):], predictions, label='Predicted Price')
+    plt.xlabel('Date')
+    plt.ylabel('Price')
+    plt.legend()
+
+    # Save the plot
+    plt.savefig('images/lstm_predictions.png')
+    plt.close()
+
 # Save the best model
-best_model.save('models/lstm_best_model.h5')
+best_model.save('models/lstm_model.h5')
 print("Best model saved.")

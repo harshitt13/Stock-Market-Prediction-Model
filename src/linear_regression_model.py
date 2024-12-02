@@ -141,4 +141,4 @@ def train_advanced_regression(file_path, save_path, plot_path, epochs=2000, lear
     return model
 
 if __name__ == "__main__":
-    train_advanced_regression("data/stock_data.csv", "models/linear_regression_model.pkl", "models/training_loss_plot.png")
+    train_advanced_regression("data/stock_data.csv", "models/linear_regression_model.pkl", "graphs/training_loss_lr_model.png")
