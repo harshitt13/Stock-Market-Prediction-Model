@@ -2,7 +2,8 @@ import pandas as pd
 import numpy as np
 import torch
 import torch.nn as nn
-from sklearn.model_selection import TimeSeriesSplit, cross_val_score
+import matplotlib.pyplot as plt
+from sklearn.model_selection import TimeSeriesSplit
 from sklearn.preprocessing import StandardScaler
 from sklearn.feature_selection import mutual_info_regression
 import os
@@ -54,7 +55,19 @@ def feature_selection(X, y, top_k=10):
     top_feature_indices = mi_scores.argsort()[-top_k:][::-1]
     return X.iloc[:, top_feature_indices]
 
-def train_advanced_regression(file_path, save_path, epochs=2000, learning_rate=0.001):
+def save_plot(losses, save_path):
+    # Plot the loss over epochs
+    plt.plot(losses, label="Loss")
+    plt.title("Training Loss Over Epochs")
+    plt.xlabel("Epochs")
+    plt.ylabel("Loss")
+    plt.legend()
+    
+    # Save the plot as an image
+    plt.savefig(save_path)
+    plt.close()
+
+def train_advanced_regression(file_path, save_path, plot_path, epochs=2000, learning_rate=0.001):
     # Load and preprocess data
     data = pd.read_csv(file_path)
     data['Date'] = pd.to_datetime(data['Date'], utc=True)
@@ -91,6 +104,8 @@ def train_advanced_regression(file_path, save_path, epochs=2000, learning_rate=0
     
     # Training loop with cross-validation approach
     best_loss = float('inf')
+    losses = []  # List to store the loss values for plotting
+    
     for epoch in range(epochs):
         model.train()
         optimizer.zero_grad()
@@ -114,9 +129,16 @@ def train_advanced_regression(file_path, save_path, epochs=2000, learning_rate=0
         # Periodic loss reporting
         if (epoch + 1) % 100 == 0:
             print(f'Epoch {epoch+1}/{epochs}, Loss: {loss.item()}')
+        
+        # Store the loss
+        losses.append(loss.item())
     
     print(f'Best Model Loss: {best_loss}')
+    
+    # Save the loss plot
+    save_plot(losses, plot_path)
+    
     return model
 
 if __name__ == "__main__":
-    train_advanced_regression("data/stock_data.csv", "models/linear_regression_model.pkl")
+    train_advanced_regression("data/stock_data.csv", "models/linear_regression_model.pkl", "models/training_loss_plot.png")
