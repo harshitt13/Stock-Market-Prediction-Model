@@ -1,18 +1,30 @@
+import os
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense
-
 import matplotlib.pyplot as plt
 
 # Load the dataset
 data_path = 'data/stock_data.csv'
 df = pd.read_csv(data_path)
 
+# Strip whitespace from column names
+df.columns = df.columns.str.strip()
+
+# Debug: Print cleaned column names
+print("Cleaned Columns in the dataset:", df.columns)
+
+# Check for necessary columns
+if 'Date' not in df.columns or 'Close' not in df.columns:
+    raise KeyError("The 'Date' or 'Close' column is missing from the dataset. Please check the CSV file.")
+
 # Preprocess the data
 df['Date'] = pd.to_datetime(df['Date'])
 df.set_index('Date', inplace=True)
+
+# Extract and reshape the 'Close' column
 data = df['Close'].values
 data = data.reshape(-1, 1)
 
@@ -53,7 +65,15 @@ model.add(Dense(1))
 model.compile(optimizer='adam', loss='mean_squared_error')
 
 # Train the model
+print("Training the LSTM model...")
 model.fit(X_train, y_train, batch_size=1, epochs=1)
+
+# Save the trained model
+models_dir = 'models'
+os.makedirs(models_dir, exist_ok=True)
+model_path = os.path.join(models_dir, 'lstm_model.h5')
+model.save(model_path)
+print(f"Model saved to {model_path}")
 
 # Make predictions
 train_predict = model.predict(X_train)
@@ -81,4 +101,5 @@ plt.plot(test_plot, label='Test Prediction')
 plt.xlabel('Date')
 plt.ylabel('Stock Price')
 plt.legend()
+plt.title('Stock Price Prediction Using LSTM')
 plt.show()
