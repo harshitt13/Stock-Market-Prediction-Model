@@ -79,6 +79,6 @@ def fetch_stock_data(ticker_symbol, start_date, end_date):
 # Example usage
 if __name__ == "__main__":
     ticker_symbol = 'AAPL'
-    start_date = '2020-01-01' 
-    end_date = '2023-01-01'
+    start_date = '2014-01-01' 
+    end_date = '2024-01-01'
     fetch_stock_data(ticker_symbol, start_date, end_date)
