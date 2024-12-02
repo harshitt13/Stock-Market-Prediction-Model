@@ -1,12 +1,12 @@
 import pandas as pd
 import numpy as np
 import torch
+import os
 import torch.nn as nn
 import matplotlib.pyplot as plt
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.preprocessing import StandardScaler
 from sklearn.feature_selection import mutual_info_regression
-import os
 
 class AdvancedRegressionModel(nn.Module):
     def __init__(self, input_dim, hidden_layers=[64, 32]):
@@ -88,7 +88,6 @@ def train_advanced_regression(file_path, save_path, plot_path, epochs=2000, lear
     
     # Time series cross-validation
     tscv = TimeSeriesSplit(n_splits=5)
-    
     # PyTorch setup
     X_tensor = torch.tensor(X_scaled, dtype=torch.float32)
     y_tensor = torch.tensor(y.values, dtype=torch.float32).view(-1, 1)
@@ -137,8 +136,11 @@ def train_advanced_regression(file_path, save_path, plot_path, epochs=2000, lear
     
     # Save the loss plot
     save_plot(losses, plot_path)
+    # Ensure the directory for saving the plot exists
+    os.makedirs(os.path.dirname(plot_path), exist_ok=True)
     
+    # Save the loss plot
     return model
 
 if __name__ == "__main__":
-    train_advanced_regression("data/stock_data.csv", "models/linear_regression_model.pkl", "graphs/training_loss_lr_model.png")
+    train_advanced_regression("data/stock_data.csv", "models/linear_regression_model.pkl", "images/training_loss_lr_model.png")
