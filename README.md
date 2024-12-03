@@ -132,6 +132,18 @@ python -m pytest tests/
 
 Distributed under the MIT License. See `LICENSE` for more information.
 
-## Contact
 
-Your Name - find.harshitkushwaha@gamil.com
+## 📫 Contact
+
+<div align="center">
+
+[![Github](https://img.shields.io/badge/-Github-000?style=flat&logo=Github&logoColor=white)](https://github.com/harshitt13)
+
+**Harshit Kushwaha**  
+ML/AI Developer
+
+📧 find.harshitkushwaha@gmail.com
+
+</div>
+
+---
