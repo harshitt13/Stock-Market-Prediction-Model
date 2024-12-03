@@ -1,4 +1,11 @@
+<div align="center">
 # Stock Analysis Prediction Model
+
+![GitHub last commit](https://img.shields.io/github/last-commit/harshitt13/GDGC_MACHINE_LEARNING_HARSHIT-KUSHWAHA)
+![GitHub repo size](https://img.shields.io/github/repo-size/harshitt13/GDGC_MACHINE_LEARNING_HARSHIT-KUSHWAHA)
+![GitHub stars](https://img.shields.io/github/stars/harshitt13/GDGC_MACHINE_LEARNING_HARSHIT-KUSHWAHA)
+
+</div>
 
 ## Project Overview
 
