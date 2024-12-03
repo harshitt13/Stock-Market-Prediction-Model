@@ -52,7 +52,7 @@ source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
 pip install -r requirements.txt
 ```
 
-## Project Structure
+## 📂 Project Structure
 
 ```
 Stock_Analysis_Prediction_Model/
@@ -67,7 +67,7 @@ Stock_Analysis_Prediction_Model/
 ```
 
 
-## Usage
+## 🔧 Usage
 
 ### Fetching Stock Data
 
@@ -90,7 +90,7 @@ To run predictions and compare model performance:
 python main.py
 ```
 
-## Model Comparison
+## ⚖️ Model Comparison
 
 The project compares two machine learning models:
 
@@ -104,7 +104,7 @@ The project compares two machine learning models:
    - Better at handling sequential data
    - More complex architecture
 
-## Performance Metrics
+## 📏 Performance Metrics
 
 The performance of each model is evaluated using:
 - Mean Squared Error (MSE)
@@ -114,14 +114,14 @@ The performance of each model is evaluated using:
 
 Detailed performance metrics are visualized in the `pictures/` directory.
 
-## Testing
+## 🧪 Testing
 
 Run the test suite to verify model and data processing functionality:
 ```bash
 python -m pytest tests/
 ```
 
-## Contributing
+## 🤝 Contributing
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
@@ -129,16 +129,15 @@ python -m pytest tests/
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-## Limitations
+## ⚠️ Limitations
 
 - Stock predictions are inherently probabilistic
 - Model performance depends on market conditions
 - Past performance does not guarantee future results
 
-## License
+## 📝 License
 
 Distributed under the MIT License. See `LICENSE` for more information.
-
 
 ## 📫 Contact
 
@@ -146,7 +145,7 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 [![Github](https://img.shields.io/badge/-Github-000?style=flat&logo=Github&logoColor=white)](https://github.com/harshitt13)
 
-**Harshit Kushwaha**  
+**Harshit Kushwaha 🧑‍💻**  
 ML/AI Developer
 
 📧 find.harshitkushwaha@gmail.com
