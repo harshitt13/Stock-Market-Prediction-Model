@@ -7,11 +7,11 @@
 
 </div>
 
-## Project Overview
+## 🎯 Project Overview
 
 This project implements a stock price prediction model using two different machine learning approaches: Linear Regression and Long Short-Term Memory (LSTM) neural networks. The goal is to provide predictive insights into stock price movements using historical data fetched from Yahoo Finance.
 
-## Features
+## 💻 Features
 
 - Automated stock data retrieval using `yfinance`
 - Two prediction models:
@@ -21,7 +21,7 @@ This project implements a stock price prediction model using two different machi
 - Model training and evaluation
 - Comparative analysis of prediction performance
 
-## Prerequisites
+## 📚 Prerequisites
 
 - Python
 - Tensorflow
@@ -33,7 +33,7 @@ This project implements a stock price prediction model using two different machi
 - joblib
 - sklearn
 
-## Installation
+## 🚀 Installation
 
 1. Clone the repository:
 ```bash
