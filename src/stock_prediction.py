@@ -1,98 +1,85 @@
-import torch
-import pickle
 import pandas as pd
-import matplotlib.pyplot as plt
-from sklearn.metrics import mean_squared_error, mean_absolute_error
+import os
+import linear_regression_model, lstm_model  # Import model scripts
 
-# Import LSTM model class
-from lstm_model import LSTMStockModel
+def predict_stock_price(model_name, model_path, start_date, end_date, stock_data):
+  """
+  Predicts stock prices using the specified model for the given date range.
 
-# Import helper functions from fetch_data.py
-from fetch_data import preprocess_data
+  Args:
+      model_name (str): Name of the model to use (e.g., "linear_regression", "lstm").
+      model_path (str): Path to the saved model file.
+      start_date (str): Start date in YYYY-MM-DD format.
+      end_date (str): End date in YYYY-MM-DD format.
+      stock_data (pd.DataFrame): Historical stock data.
 
-# Define constants
-DATA_PATH = "data/stock_data.csv"
-LINEAR_MODEL_PATH = "models/linear_regression_model.pkl"
-LSTM_MODEL_PATH = "models/lstm_model.p5"
+  Returns:
+      pd.DataFrame: DataFrame containing predicted closing prices for the date range.
+  """
 
-def load_models():
-    """
-    Load the trained models: Linear Regression and LSTM.
-    """
-    # Load Linear Regression model
-    with open(LINEAR_MODEL_PATH, 'rb') as file:
-        linear_model = pickle.load(file)
+  if model_name == "linear_regression":
+    # Load linear regression model from PyTorch
+    model = linear_regression_model.load_model(model_path)
 
-    # Load LSTM model
-    lstm_model = LSTMStockModel(input_size=1, hidden_size=50, num_layers=2, output_size=1)
-    lstm_model.load_state_dict(torch.load(LSTM_MODEL_PATH))
+    # Preprocess data for linear regression model (if needed)
+    # ... (consider normalization, feature selection, etc.)
 
-    return linear_model, lstm_model
+    # Create a DataFrame for predictions with desired features
+    prediction_data = stock_data.loc[(stock_data.index >= start_date) & (stock_data.index <= end_date), prediction_features]
 
-def evaluate_model(model, X_test, y_test, model_type="Linear Regression"):
-    """
-    Evaluate a model on the test data.
-    """
-    if model_type == "Linear Regression":
-        y_pred = model.predict(X_test)
-    elif model_type == "LSTM":
-        model.eval()
-        with torch.no_grad():
-            X_test_tensor = torch.tensor(X_test, dtype=torch.float32).unsqueeze(-1)
-            y_pred = model(X_test_tensor).squeeze().numpy()
+    # Predict closing prices using the model
+    predicted_prices = model.predict(prediction_data)
 
-    # Calculate metrics
-    mse = mean_squared_error(y_test, y_pred)
-    mae = mean_absolute_error(y_test, y_pred)
+    # Prepare result DataFrame
+    result_df = pd.DataFrame({"Date": prediction_data.index, "Predicted Closing Price": predicted_prices})
 
-    print(f"Performance of {model_type}:")
-    print(f"  Mean Squared Error (MSE): {mse}")
-    print(f"  Mean Absolute Error (MAE): {mae}\n")
+  elif model_name == "lstm":
+    # Load LSTM model from PyTorch
+    model = lstm_model.load_model(model_path)
 
-    return y_pred
+    # Preprocess data for LSTM model (ensure correct sequence formatting)
+    # ... (consider windowing, normalization, etc.)
 
-def plot_predictions(dates, y_test, y_pred_linear, y_pred_lstm):
-    """
-    Plot actual vs predicted prices for both models.
-    """
-    plt.figure(figsize=(12, 6))
+    # Create a DataFrame for predictions with the LSTM's required format
+    lstm_features = [...]  # Define the features required for LSTM model
+    prediction_data = stock_data.loc[(stock_data.index >= start_date) & (stock_data.index <= end_date), lstm_features]
 
-    # Actual prices
-    plt.plot(dates, y_test, label="Actual Prices", color='blue', linewidth=2)
+    # Predict closing prices using the LSTM model
+    predicted_prices = model.predict(prediction_data)
 
-    # Linear Regression predictions
-    plt.plot(dates, y_pred_linear, label="Linear Regression Predictions", color='green', linestyle='--')
+    # Prepare result DataFrame
+    result_df = pd.DataFrame({"Date": prediction_data.index, "Predicted Closing Price": predicted_prices})
 
-    # LSTM predictions
-    plt.plot(dates, y_pred_lstm, label="LSTM Predictions", color='orange', linestyle='--')
+  else:
+    raise ValueError(f"Invalid model name: {model_name}")
 
-    plt.title("Stock Price Predictions: Actual vs Predicted")
-    plt.xlabel("Dates")
-    plt.ylabel("Stock Prices")
-    plt.legend()
-    plt.grid()
-    plt.show()
-
-def main():
-    """
-    Main script to compare and evaluate Linear Regression and LSTM models.
-    """
-    print("Loading data...")
-    # Load and preprocess data
-    df = pd.read_csv(DATA_PATH)
-    X_train, X_test, y_train, y_test, dates = preprocess_data(df)
-
-    print("Loading trained models...")
-    linear_model, lstm_model = load_models()
-    _, X_test, _, y_test, dates = preprocess_data(df)
-    print("Evaluating Linear Regression model...")
-    y_pred_linear = evaluate_model(linear_model, X_test, y_test, model_type="Linear Regression")
-
-    print("Evaluating LSTM model...")
-    y_pred_lstm = evaluate_model(lstm_model, X_test, y_test, model_type="LSTM")
-
-    print("Plotting predictions...")
-    plot_predictions(dates, y_test, y_pred_linear, y_pred_lstm)
+  return result_df
 
 if __name__ == "__main__":
-    main()
+  def load_historical_stock_data():
+      # Implement the function to load historical stock data
+      pass
+
+  stock_data = load_historical_stock_data()
+  stock_data = load_historical_stock_data(...)
+
+  # Get user input for model selection, date range, and prediction features/window (if applicable)
+  model_name = input("Enter model name (linear_regression, lstm): ")
+  start_date = input("Enter start date (YYYY-MM-DD): ")
+  end_date = input("Enter end date (YYYY-MM-DD): ")
+
+  # Handle model-specific prediction features/window based on user input
+  if model_name == "linear_regression":
+    prediction_features = (...)  # Specify features used for prediction
+  elif model_name == "lstm":
+    prediction_window = (...)  # Specify window size for LSTM predictions
+
+  # Load the appropriate model based on user input
+  model_path = os.path.join("models", f"{model_name}_model.pth")  # Assuming PyTorch models
+
+  # Make predictions
+  predictions = predict_stock_price(model_name, model_path, start_date, end_date, stock_data)
+
+  # Print or visualize predictions (e.g., using matplotlib or a plotting library)
+  print(predictions)
+  # ... (plot predictions)

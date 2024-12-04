@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import os
+import torch
 import matplotlib.pyplot as plt
 from tensorflow.keras.layers import LSTM, Dense
 from tensorflow.keras.models import Sequential
@@ -97,6 +98,20 @@ def save_plot(y_test_scaled, predictions):
     # Save the plot
     plt.savefig('images/lstm_predictions.png')
     plt.close()
+
+def load_lstm_model(filepath):
+    # Load a pre-trained LSTM model from the specified file path
+    model = torch.load(filepath)
+    model.eval()  # Set to evaluation mode
+    scaler = MinMaxScaler(feature_range=(0, 1))  # Reinitialize scaler
+    return model, scaler
+
+def predict_lstm(model, input_data):
+    model.eval()  # Set the model to evaluation mode
+    input_tensor = torch.tensor(input_data, dtype=torch.float32)
+    with torch.no_grad():
+        predictions = model(input_tensor)
+    return predictions.numpy()
 
 # Save the best model
 best_model.save('models/lstm_model.h5')

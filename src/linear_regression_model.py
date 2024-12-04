@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import torch
 import os
+import pickle
 import torch.nn as nn
 import matplotlib.pyplot as plt
 from sklearn.model_selection import TimeSeriesSplit
@@ -140,6 +141,12 @@ def train_advanced_regression(file_path, save_path, plot_path, epochs=2000, lear
     os.makedirs(os.path.dirname(plot_path), exist_ok=True)
     
     # Save the loss plot
+    return model
+
+def load_linear_regression_model(filepath):
+    # Function to load a linear regression model from a file
+    with open(filepath, 'rb') as file:
+        model = pickle.load(file)
     return model
 
 if __name__ == "__main__":
