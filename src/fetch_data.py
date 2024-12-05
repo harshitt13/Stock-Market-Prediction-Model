@@ -3,7 +3,7 @@ import pandas as pd
 import os
 from datetime import datetime, timedelta
 
-def fetch_stock_data(ticker_symbol, start_date, end_date):
+def fetch_stock_data(ticker_symbol, start_date, end_date=None):
     """
     Fetch stock data and financial metrics using yfinance
     
@@ -32,9 +32,6 @@ def fetch_stock_data(ticker_symbol, start_date, end_date):
         if col in df.columns:
             df = df.drop(col, axis=1)
     
-    # Print available columns for debugging
-    print("Available columns:", df.columns.tolist())
-    
     try:
         # Get earnings per share
         eps = ticker.info.get('trailingEps', None)
@@ -58,14 +55,10 @@ def fetch_stock_data(ticker_symbol, start_date, end_date):
         print(f"Error fetching financial metrics: {e}")
     
     # Reorder columns to match desired format
-    # First, ensure Date is the first column, then add price columns
     price_cols = [col for col in ['Adj Close', 'Close', 'High', 'Low', 'Open', 'Volume'] 
                 if col in df.columns]
     
-    # Then add the financial metrics
     final_cols = ['Date'] + price_cols + ['EPS', 'Revenue', 'ROE', 'P/E']
-    
-    # Reorder columns that exist in the dataframe
     df = df[final_cols]
     
     # Save to CSV
@@ -74,11 +67,12 @@ def fetch_stock_data(ticker_symbol, start_date, end_date):
         os.makedirs(data_dir)
     filepath = os.path.join(data_dir, "stock_data.csv")
     df.to_csv(filepath, index=False)
+    
+    print(f"Data fetched: {df.shape[0]} rows, {df.shape[1]} columns.")
     print(f"Stock data saved to {filepath}")
 
 # Example usage
 if __name__ == "__main__":
     ticker_symbol = 'AAPL'
     start_date = '2014-01-01' 
-    end_date = '2024-01-01'
-    fetch_stock_data(ticker_symbol, start_date, end_date)
+    fetch_stock_data(ticker_symbol, start_date)
