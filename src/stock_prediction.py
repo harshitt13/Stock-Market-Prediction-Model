@@ -1,85 +1,131 @@
-import pandas as pd
 import os
-import linear_regression_model, lstm_model  # Import model scripts
+import torch
+import pandas as pd
+from lstm_model import predict_lstm, load_lstm_model
+from fetch_data import fetch_stock_data
+from sklearn.linear_model import LinearRegression
+import numpy as np
 
-def predict_stock_price(model_name, model_path, start_date, end_date, stock_data):
-  """
-  Predicts stock prices using the specified model for the given date range.
+def load_historical_stock_data(ticker_symbol, start_date, end_date=None):
+    """
+    Wrapper to fetch and load stock data into a DataFrame.
+    
+    Args:
+        ticker_symbol (str): Stock ticker symbol.
+        start_date (str): Start date in YYYY-MM-DD format.
+        end_date (str): End date in YYYY-MM-DD format.
+    
+    Returns:
+        pd.DataFrame: A DataFrame with historical stock data and additional metrics.
+    """
+    # Fetch stock data
+    fetch_stock_data(ticker_symbol, start_date, end_date)
+    
+    # Load the saved CSV file
+    data_file_path = os.path.join('data', 'stock_data.csv')
+    if os.path.exists(data_file_path):
+        stock_data = pd.read_csv(data_file_path)
+        print("Stock data loaded successfully.")
+        return stock_data
+    else:
+        raise FileNotFoundError(f"Stock data file not found at {data_file_path}")
 
-  Args:
-      model_name (str): Name of the model to use (e.g., "linear_regression", "lstm").
-      model_path (str): Path to the saved model file.
-      start_date (str): Start date in YYYY-MM-DD format.
-      end_date (str): End date in YYYY-MM-DD format.
-      stock_data (pd.DataFrame): Historical stock data.
+def preprocess_data(stock_data):
+    """
+    Preprocess the stock data for model input.
+    
+    Args:
+        stock_data (pd.DataFrame): Raw stock data.
+    
+    Returns:
+        np.array: Processed data for Linear Regression.
+        torch.Tensor: Processed data for LSTM.
+    """
+    # Select relevant features (e.g., Close price, Revenue, EPS, etc.)
+    features = ['Close', 'Revenue', 'EPS', 'ROE', 'P/E']
+    for feature in features:
+        if feature not in stock_data.columns:
+            raise ValueError(f"Feature {feature} is missing in the stock data.")
+    
+    processed_data = stock_data[features].fillna(0)  # Replace missing values with 0
 
-  Returns:
-      pd.DataFrame: DataFrame containing predicted closing prices for the date range.
-  """
+    # Split data into Linear Regression (NumPy) and LSTM (PyTorch)
+    lr_data = processed_data.values
+    lstm_data = torch.tensor(processed_data.values, dtype=torch.float32)
+    return lr_data, lstm_data
 
-  if model_name == "linear_regression":
-    # Load linear regression model from PyTorch
-    model = linear_regression_model.load_model(model_path)
+def predict_with_linear_regression(stock_data):
+    """
+    Use Linear Regression to predict stock prices.
+    
+    Args:
+        stock_data (pd.DataFrame): Historical stock data.
+    
+    Returns:
+        np.array: Predicted stock prices.
+    """
+    # Extract features and target variable
+    features = ['Revenue', 'EPS', 'ROE', 'P/E']  # Independent variables
+    target = 'Close'  # Dependent variable
 
-    # Preprocess data for linear regression model (if needed)
-    # ... (consider normalization, feature selection, etc.)
+    if target not in stock_data.columns:
+        raise ValueError(f"Target column {target} is missing in the stock data.")
 
-    # Create a DataFrame for predictions with desired features
-    prediction_data = stock_data.loc[(stock_data.index >= start_date) & (stock_data.index <= end_date), prediction_features]
+    X = stock_data[features].fillna(0).values  # Replace NaN values with 0
+    y = stock_data[target].fillna(0).values
 
-    # Predict closing prices using the model
-    predicted_prices = model.predict(prediction_data)
+    # Train-test split (last 20% for testing)
+    split_index = int(len(X) * 0.8)
+    X_train, X_test = X[:split_index], X[split_index:]
+    y_train, y_test = y[:split_index], y[split_index:]
 
-    # Prepare result DataFrame
-    result_df = pd.DataFrame({"Date": prediction_data.index, "Predicted Closing Price": predicted_prices})
+    # Initialize and train Linear Regression model
+    lr_model = LinearRegression()
+    lr_model.fit(X_train, y_train)
 
-  elif model_name == "lstm":
-    # Load LSTM model from PyTorch
-    model = lstm_model.load_model(model_path)
+    # Make predictions on the entire dataset
+    predictions = lr_model.predict(X)
+    print("Linear Regression model trained successfully.")
+    return predictions
 
-    # Preprocess data for LSTM model (ensure correct sequence formatting)
-    # ... (consider windowing, normalization, etc.)
+def main():
+    """
+    Main function to load data, preprocess it, and predict stock prices using Linear Regression and LSTM models.
+    """
+    # Define parameters
+    ticker_symbol = 'AAPL'  # Example: Apple Inc.
+    start_date = '2014-01-01'
+    end_date = '2024-01-01'  # Optional: Leave as None to use the current date
+    lstm_model_path = 'models/best_lstm_model.pth'  # Path to the saved LSTM model
 
-    # Create a DataFrame for predictions with the LSTM's required format
-    lstm_features = [...]  # Define the features required for LSTM model
-    prediction_data = stock_data.loc[(stock_data.index >= start_date) & (stock_data.index <= end_date), lstm_features]
+    try:
+        # Step 1: Load historical stock data
+        stock_data = load_historical_stock_data(ticker_symbol, start_date, end_date)
 
-    # Predict closing prices using the LSTM model
-    predicted_prices = model.predict(prediction_data)
+        # Step 2: Preprocess the data
+        lr_data, lstm_data = preprocess_data(stock_data)
 
-    # Prepare result DataFrame
-    result_df = pd.DataFrame({"Date": prediction_data.index, "Predicted Closing Price": predicted_prices})
+        # Step 3: Predict with Linear Regression
+        lr_predictions = predict_with_linear_regression(stock_data)
+        stock_data['Linear Regression Predicted Price'] = lr_predictions
 
-  else:
-    raise ValueError(f"Invalid model name: {model_name}")
+        # Step 4: Load the trained LSTM model
+        lstm_model = load_lstm_model(lstm_model_path)
 
-  return result_df
+        # Step 5: Predict with LSTM
+        lstm_predictions = predict_lstm(lstm_model, lstm_data)
+        stock_data['LSTM Predicted Price'] = lstm_predictions.detach().numpy()
+
+        # Display results
+        print(stock_data[['Date', 'Close', 'Linear Regression Predicted Price', 'LSTM Predicted Price']])
+
+        # Save the predictions to a CSV file
+        output_file = os.path.join('data', 'predicted_stock_data.csv')
+        stock_data.to_csv(output_file, index=False)
+        print(f"Predictions saved to {output_file}")
+    
+    except Exception as e:
+        print(f"Error: {e}")
 
 if __name__ == "__main__":
-  def load_historical_stock_data():
-      # Implement the function to load historical stock data
-      pass
-
-  stock_data = load_historical_stock_data()
-  stock_data = load_historical_stock_data(...)
-
-  # Get user input for model selection, date range, and prediction features/window (if applicable)
-  model_name = input("Enter model name (linear_regression, lstm): ")
-  start_date = input("Enter start date (YYYY-MM-DD): ")
-  end_date = input("Enter end date (YYYY-MM-DD): ")
-
-  # Handle model-specific prediction features/window based on user input
-  if model_name == "linear_regression":
-    prediction_features = (...)  # Specify features used for prediction
-  elif model_name == "lstm":
-    prediction_window = (...)  # Specify window size for LSTM predictions
-
-  # Load the appropriate model based on user input
-  model_path = os.path.join("models", f"{model_name}_model.pth")  # Assuming PyTorch models
-
-  # Make predictions
-  predictions = predict_stock_price(model_name, model_path, start_date, end_date, stock_data)
-
-  # Print or visualize predictions (e.g., using matplotlib or a plotting library)
-  print(predictions)
-  # ... (plot predictions)
+    main()
