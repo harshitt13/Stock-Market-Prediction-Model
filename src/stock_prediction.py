@@ -96,7 +96,7 @@ def main():
     ticker_symbol = 'AAPL'  # Example: Apple Inc.
     start_date = '2014-01-01'
     end_date = '2024-01-01'  # Optional: Leave as None to use the current date
-    lstm_model_path = 'models/best_lstm_model.pth'  # Path to the saved LSTM model
+    lstm_model_path = 'models/lstm_model.h5'  # Path to the saved LSTM model
 
     try:
         # Step 1: Load historical stock data
