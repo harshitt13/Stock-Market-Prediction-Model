@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.preprocessing import StandardScaler
 from sklearn.feature_selection import mutual_info_regression
+from fetch_data import fetch_stock_data  # Import fetch_stock_data function
 
 class AdvancedRegressionModel(nn.Module):
     def __init__(self, input_dim, hidden_layers=[64, 32]):
@@ -150,4 +151,11 @@ def load_linear_regression_model(filepath):
     return model
 
 if __name__ == "__main__":
-    train_advanced_regression("data/stock_data.csv", "models/linear_regression_model.pkl", "images/training_loss_lr_model.png")
+    # Fetch stock data first
+    ticker_symbol = 'AAPL'  # Example: Apple Inc.
+    start_date = '2010-01-01'  # Start date
+    end_date = None  # Use None for the current date (optional)
+    fetch_stock_data(ticker_symbol, start_date, end_date)
+    
+    # Train the model using the fetched data
+    train_advanced_regression("data/AAPL_stock_data.csv", "models/linear_regression_model.pkl", "images/training_loss_lr_model.png")

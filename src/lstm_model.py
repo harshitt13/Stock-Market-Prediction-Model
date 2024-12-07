@@ -114,6 +114,40 @@ def predict_lstm(model, scaler, input_data):
     prediction = scaler.inverse_transform(prediction_scaled)
     return prediction
 
+# Function to forecast future stock prices using the model
+def forecast_future(model, scaler, last_known_data, forecast_days):
+    """
+    Forecast future stock prices using the LSTM model.
+    
+    Args:
+        model (keras.Model): Trained LSTM model.
+        scaler (MinMaxScaler): Scaler used for data normalization.
+        last_known_data (np.array): Last known data (e.g., last 60 days' stock prices).
+        forecast_days (int): Number of days to forecast.
+    
+    Returns:
+        np.array: Array of forecasted stock prices.
+    """
+    forecast = []
+    current_input = last_known_data
+
+    for _ in range(forecast_days):
+        # Reshape and scale the input data
+        input_data_scaled = scaler.transform(current_input)
+        input_data_scaled = np.reshape(input_data_scaled, (1, input_data_scaled.shape[0], 1))
+        
+        # Predict the next day's price
+        predicted_scaled = model.predict(input_data_scaled)
+        predicted = scaler.inverse_transform(predicted_scaled)
+
+        # Append the prediction to the forecast
+        forecast.append(predicted[0][0])
+
+        # Update current_input for the next iteration (slide the window)
+        current_input = np.append(current_input[1:], predicted)
+
+    return forecast
+
 # Example of loading the model and making predictions
 model_path = 'models/lstm_model.h5'
 scaler_path = 'models/scaler.npy'
@@ -127,6 +161,13 @@ try:
     input_data = np.array([[1500]])  # Replace with actual stock price data
     prediction = predict_lstm(model, scaler, input_data)
     print("Predicted Stock Price:", prediction)
+    
+    # Forecast future stock prices
+    last_known_data = df['Close'].values[-60:].reshape(-1, 1)  # Last 60 days of stock prices
+    forecast_days = 10  # Forecast the next 10 days
+
+    forecasted_prices = forecast_future(model, scaler, last_known_data, forecast_days)
+    print("Forecasted Stock Prices for the next 10 days:", forecasted_prices)
     
 except FileNotFoundError as e:
     print(f"Error: {e}. Please ensure the paths are correct.")

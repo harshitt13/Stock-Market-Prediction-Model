@@ -54,12 +54,13 @@ def preprocess_data(stock_data):
     lstm_data = torch.tensor(processed_data.values, dtype=torch.float32)
     return lr_data, lstm_data
 
-def predict_with_linear_regression(stock_data):
+def predict_with_linear_regression(stock_data, future_days=30):
     """
     Use Linear Regression to predict stock prices.
     
     Args:
         stock_data (pd.DataFrame): Historical stock data.
+        future_days (int): Number of days to predict into the future.
     
     Returns:
         np.array: Predicted stock prices.
@@ -83,10 +84,22 @@ def predict_with_linear_regression(stock_data):
     lr_model = LinearRegression()
     lr_model.fit(X_train, y_train)
 
-    # Make predictions on the entire dataset
-    predictions = lr_model.predict(X)
+    # Make future predictions by extending the dataset
+    last_known_data = stock_data[features].iloc[-1:].values
+    future_predictions = []
+
+    for _ in range(future_days):
+        # Predict the next day's price
+        next_day_prediction = lr_model.predict(last_known_data)[0]
+        future_predictions.append(next_day_prediction)
+
+        # Add the predicted data as the new "known" data for the next day
+        # Assuming that future features will stay constant for simplicity (adjust as necessary)
+        last_known_data = np.roll(last_known_data, -1, axis=1)
+        last_known_data[0, -1] = next_day_prediction
+
     print("Linear Regression model trained successfully.")
-    return predictions
+    return np.array(future_predictions)
 
 def main():
     """
@@ -97,6 +110,7 @@ def main():
     start_date = '2014-01-01'
     end_date = '2024-01-01'  # Optional: Leave as None to use the current date
     lstm_model_path = 'models/lstm_model.h5'  # Path to the saved LSTM model
+    future_days = 30  # Number of days to forecast
 
     try:
         # Step 1: Load historical stock data
@@ -106,15 +120,15 @@ def main():
         lr_data, lstm_data = preprocess_data(stock_data)
 
         # Step 3: Predict with Linear Regression
-        lr_predictions = predict_with_linear_regression(stock_data)
-        stock_data['Linear Regression Predicted Price'] = lr_predictions
+        lr_predictions = predict_with_linear_regression(stock_data, future_days)
+        stock_data['Linear Regression Predicted Price'] = np.concatenate([stock_data['Close'].values, lr_predictions])
 
         # Step 4: Load the trained LSTM model
         lstm_model = load_lstm_model(lstm_model_path)
 
-        # Step 5: Predict with LSTM
+        # Step 5: Prepare input for LSTM prediction (we assume it predicts future values similarly)
         lstm_predictions = predict_lstm(lstm_model, lstm_data)
-        stock_data['LSTM Predicted Price'] = lstm_predictions.detach().numpy()
+        stock_data['LSTM Predicted Price'] = np.concatenate([stock_data['Close'].values, lstm_predictions.detach().numpy()])
 
         # Display results
         print(stock_data[['Date', 'Close', 'Linear Regression Predicted Price', 'LSTM Predicted Price']])
