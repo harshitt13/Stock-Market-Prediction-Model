@@ -117,36 +117,31 @@ def predict_lstm(model, scaler, input_data):
 # Function to forecast future stock prices using the model
 def forecast_future(model, scaler, last_known_data, forecast_days):
     """
-    Forecast future stock prices using the LSTM model.
-    
-    Args:
-        model (keras.Model): Trained LSTM model.
-        scaler (MinMaxScaler): Scaler used for data normalization.
-        last_known_data (np.array): Last known data (e.g., last 60 days' stock prices).
-        forecast_days (int): Number of days to forecast.
-    
-    Returns:
-        np.array: Array of forecasted stock prices.
+    Generate future forecasts using the trained LSTM model.
     """
-    forecast = []
-    current_input = last_known_data
+    model.eval()
+    forecasted_prices = []
+    current_input = np.array(last_known_data)
 
     for _ in range(forecast_days):
-        # Reshape and scale the input data
-        input_data_scaled = scaler.transform(current_input)
-        input_data_scaled = np.reshape(input_data_scaled, (1, input_data_scaled.shape[0], 1))
+        # Reshape the current input to 2D before transforming
+        input_data_scaled = scaler.transform(current_input.reshape(-1, 1))
+
+        # Convert to PyTorch tensor and reshape for LSTM input
+        input_tensor = torch.tensor(input_data_scaled, dtype=torch.float32).view(1, -1, 1)
+
+        # Generate the prediction
+        with torch.no_grad():
+            prediction = model(input_tensor)
         
-        # Predict the next day's price
-        predicted_scaled = model.predict(input_data_scaled)
-        predicted = scaler.inverse_transform(predicted_scaled)
+        # Inverse transform the scaled prediction
+        predicted_price = scaler.inverse_transform(prediction.numpy())[0][0]
+        forecasted_prices.append(predicted_price)
 
-        # Append the prediction to the forecast
-        forecast.append(predicted[0][0])
+        # Update current input by appending the predicted price
+        current_input = np.append(current_input[1:], predicted_price)
 
-        # Update current_input for the next iteration (slide the window)
-        current_input = np.append(current_input[1:], predicted)
-
-    return forecast
+    return forecasted_prices
 
 # Example of loading the model and making predictions
 model_path = 'models/lstm_model.h5'
