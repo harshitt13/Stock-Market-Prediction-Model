@@ -1,120 +1,191 @@
-import os
-import pandas as pd
-from lstm_model import train_lstm_model, forecast_future, load_lstm_model
-from linear_regression_model import train_linear_regression, predict_linear_regression
+import numpy as np
 import matplotlib.pyplot as plt
+import yfinance as yf
+from datetime import datetime, timedelta
 
-# Define paths for data and models
-data_path = "data/AAPL_stock_data.csv"  # Update with your actual path
-lstm_model_path = "models/lstm_model.pth"
-lstm_scaler_path = "models/lstm_scaler.pkl"
-linear_regression_model_path = "models/linear_regression.pkl"
-forecast_days = 30  # Number of days to forecast
+from fetch_data import fetch_stock_data, preprocess_data
+from linear_regression_model import load_linear_regression_model, predict_linear_regression
+from lstm_model import load_lstm_model, predict_lstm
 
-# Check if models directory exists, if not create it
-if not os.path.exists("models"):
-    os.makedirs("models")
+def prepare_future_input(data, sequence_length=60, future_days=30):
+    """
+    Prepare input sequences for future prediction
+    
+    Args:
+        data (numpy.ndarray): Historical price data
+        sequence_length (int): Number of past time steps
+        future_days (int): Number of days to predict
+    
+    Returns:
+        numpy.ndarray: Input sequences for prediction
+    """
+    # Use the last complete sequence as input
+    last_sequence = data[-sequence_length:]
+    
+    # Reshape for model input
+    last_sequence = last_sequence.reshape(1, sequence_length, 1)
+    
+    return last_sequence
 
-# Load the dataset
-def load_data(file_path):
-    try:
-        data = pd.read_csv(file_path)
-        data['Date'] = pd.to_datetime(data['Date'], errors='coerce', utc=True)
-        return data
-    except FileNotFoundError:
-        print(f"Error: Dataset file not found at {file_path}. Please check the file path.")
+def predict_future_stock_prices(ticker='AAPL', future_days=30):
+    """
+    Predict future stock prices using multiple models
+    
+    Args:
+        ticker (str): Stock ticker symbol
+        future_days (int): Number of days to predict
+    
+    Returns:
+        dict: Predictions from different models
+    """
+    # Fetch stock data
+    stock_data = fetch_stock_data(ticker)
+    
+    if stock_data is None:
+        print("Failed to fetch stock data.")
         return None
-
-# Train LSTM model
-def train_lstm_model_wrapper(data):
-    model, scaler = train_lstm_model(data, lstm_model_path, lstm_scaler_path)
-    return model, scaler
-
-# Train Linear Regression model
-def train_linear_regression_wrapper(data):
-    model = train_linear_regression(data, linear_regression_model_path)
-    return model
-
-# Make predictions using LSTM and Linear Regression models
-def make_predictions(data, model, scaler, forecast_days):
-    # Prepare data for LSTM prediction (last 60 days)
-    close_prices = data["Close"].values
-    last_known_data = close_prices[-60:].reshape(1, -1)  # Using last 60 days as input
     
-    # LSTM forecast
-    lstm_forecast = forecast_future(model, scaler, last_known_data, forecast_days)
-
-    # Prepare data for Linear Regression prediction
-    train_features, train_labels = train_linear_regression(data)
+    # Preprocess data
+    processed_data = preprocess_data(stock_data)
+    X, y = processed_data['X'], processed_data['y']
+    close_scaler = processed_data['scalers']['Close']
+    original_data = processed_data['original_data']
     
-    # Linear Regression forecast
-    linear_regression_forecast = predict_linear_regression(model, train_features)
-
-    return lstm_forecast, linear_regression_forecast
-
-# Plot the results
-def plot_results(actual_prices, lstm_forecast, linear_regression_forecast, forecast_days):
+    # Split data
+    train_size = int(0.8 * len(X))
+    X_train, X_test = X[:train_size], X[train_size:]
+    y_train, y_test = y[:train_size], y[train_size:]
+    
+    # Load pre-trained models
+    lr_model = load_linear_regression_model(X_train.shape[1])
+    lstm_model = load_lstm_model()
+    
+    # Prepare future input
+    future_input = prepare_future_input(X)
+    
+    # Predict future prices
+    lr_predictions = predict_linear_regression(lr_model, future_input)
+    lstm_predictions = predict_lstm(lstm_model, future_input)
+    
+    # Inverse transform predictions
+    lr_future_prices = close_scaler.inverse_transform(lr_predictions)
+    lstm_future_prices = close_scaler.inverse_transform(lstm_predictions)
+    
+    # Generate future dates
+    last_date = original_data.index[-1]
+    future_dates = [last_date + timedelta(days=i+1) for i in range(future_days)]
+    
+    # Visualize predictions
     plt.figure(figsize=(12, 6))
-    plt.plot(range(len(actual_prices)), actual_prices, label="Actual Prices", color="blue")
-
-    # Plot LSTM predictions
-    plt.plot(range(len(actual_prices), len(actual_prices) + forecast_days),
-        lstm_forecast, label="LSTM Forecast", color="orange")
-
+    plt.plot(original_data.index, original_data['Close'], label='Historical Prices')
+    
     # Plot Linear Regression predictions
-    plt.plot(range(len(actual_prices), len(actual_prices) + len(linear_regression_forecast)),
-        linear_regression_forecast, label="Linear Regression Forecast", color="green")
-
-    plt.axvline(x=len(actual_prices) - 1, linestyle="--", color="gray", label="Forecast Start")
+    plt.plot(future_dates, lr_future_prices, 'r--', label='Linear Regression Prediction')
+    
+    # Plot LSTM predictions
+    plt.plot(future_dates, lstm_future_prices, 'g--', label='LSTM Prediction')
+    
+    plt.title(f'{ticker} Stock Price Prediction')
+    plt.xlabel('Date')
+    plt.ylabel('Price')
     plt.legend()
-    plt.title("Stock Price Prediction with LSTM and Linear Regression")
-    plt.xlabel("Time (days)")
-    plt.ylabel("Price")
-    plt.grid(True)
-    plt.show()
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.savefig('images/stock_price_predictions.png')
+    plt.close()
+    
+    # Print predictions
+    print("\nLinear Regression Future Predictions:")
+    for date, price in zip(future_dates, lr_future_prices):
+        print(f"{date.date()}: ${price[0]:.2f}")
+    
+    print("\nLSTM Future Predictions:")
+    for date, price in zip(future_dates, lstm_future_prices):
+        print(f"{date.date()}: ${price[0]:.2f}")
+    
+    return {
+        'linear_regression': {
+            'dates': future_dates,
+            'prices': lr_future_prices
+        },
+        'lstm': {
+            'dates': future_dates,
+            'prices': lstm_future_prices
+        }
+    }
 
-# Save forecasted prices to CSV
-def save_forecasts(lstm_forecast, linear_regression_forecast, forecast_days):
-    # Save LSTM forecasted prices to CSV
-    lstm_forecast_df = pd.DataFrame({
-        "Day": range(1, forecast_days + 1),
-        "LSTM Forecasted Price": lstm_forecast
-    })
-    lstm_forecast_df.to_csv("../data/lstm_forecasted_prices.csv", index=False)
-    print("LSTM forecasted prices saved to 'lstm_forecasted_prices.csv'.")
+def evaluate_models(y_true, lr_predictions, lstm_predictions):
+    """
+    Evaluate model performance using Mean Absolute Error (MAE)
+    
+    Args:
+        y_true (numpy.ndarray): True target values
+        lr_predictions (numpy.ndarray): Linear Regression predictions
+        lstm_predictions (numpy.ndarray): LSTM predictions
+    
+    Returns:
+        dict: Model performance metrics
+    """
+    from sklearn.metrics import mean_absolute_error, mean_squared_error
+    
+    lr_mae = mean_absolute_error(y_true, lr_predictions)
+    lstm_mae = mean_absolute_error(y_true, lstm_predictions)
+    
+    lr_mse = mean_squared_error(y_true, lr_predictions)
+    lstm_mse = mean_squared_error(y_true, lstm_predictions)
+    
+    print("\nModel Performance Evaluation:")
+    print("Linear Regression:")
+    print(f"  Mean Absolute Error: {lr_mae:.4f}")
+    print(f"  Mean Squared Error: {lr_mse:.4f}")
+    
+    print("\nLSTM:")
+    print(f"  Mean Absolute Error: {lstm_mae:.4f}")
+    print(f"  Mean Squared Error: {lstm_mse:.4f}")
+    
+    return {
+        'linear_regression': {
+            'mae': lr_mae,
+            'mse': lr_mse
+        },
+        'lstm': {
+            'mae': lstm_mae,
+            'mse': lstm_mse
+        }
+    }
 
-    # Save Linear Regression forecasted prices to CSV
-    linear_forecast_df = pd.DataFrame({
-        "Day": range(1, len(linear_regression_forecast) + 1),
-        "Linear Regression Forecasted Price": linear_regression_forecast
-    })
-    linear_forecast_df.to_csv("../data/linear_regression_forecasted_prices.csv", index=False)
-    print("Linear Regression forecasted prices saved to 'linear_regression_forecasted_prices.csv'.")
-
-def main():
-    # Load and preprocess the dataset
-    data = load_data(data_path)
-    if data is None:
-        return
-
-    # Train models
-    print("Training LSTM model...")
-    lstm_model, lstm_scaler = train_lstm_model_wrapper(data)
-
-    print("Training Linear Regression model...")
-    linear_regression_model = train_linear_regression_wrapper(data)
-
+def main(ticker='AAPL', future_days=30):
+    """
+    Main function to run stock price prediction
+    
+    Args:
+        ticker (str): Stock ticker symbol
+        future_days (int): Number of days to predict
+    """
+    # Load preprocessed data
+    X = np.load('data/processed_X.npy')
+    y = np.load('data/processed_y.npy')
+    
+    # Split data
+    train_size = int(0.8 * len(X))
+    X_train, X_test = X[:train_size], X[train_size:]
+    y_train, y_test = y[:train_size], y[train_size:]
+    
+    # Load pre-trained models
+    lr_model = load_linear_regression_model(X_train.shape[1])
+    lstm_model = load_lstm_model()
+    
     # Make predictions
-    print("Making predictions...")
-    lstm_forecast, linear_regression_forecast = make_predictions(data, lstm_model, lstm_scaler, forecast_days)
-
-    # Plot the results
-    print("Plotting the results...")
-    plot_results(data['Close'].values, lstm_forecast, linear_regression_forecast, forecast_days)
-
-    # Save the forecasts
-    print("Saving forecasted data...")
-    save_forecasts(lstm_forecast, linear_regression_forecast, forecast_days)
+    lr_test_predictions = predict_linear_regression(lr_model, X_test)
+    lstm_test_predictions = predict_lstm(lstm_model, X_test)
+    
+    # Evaluate models
+    evaluate_models(y_test, lr_test_predictions, lstm_test_predictions)
+    
+    # Predict future prices
+    future_predictions = predict_future_stock_prices(ticker, future_days)
+    
+    return future_predictions
 
 if __name__ == "__main__":
     main()

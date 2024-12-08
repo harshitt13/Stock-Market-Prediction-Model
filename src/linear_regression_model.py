@@ -1,179 +1,60 @@
 import pandas as pd
-import pickle
-from sklearn.linear_model import LinearRegression
-from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error
+import joblib
+import os
 
+import matplotlib.pyplot as plt
 
-class LinearRegressionModel:
-    """
-    A wrapper class for Linear Regression using sklearn with scaling and save/load functionality.
-    """
-    def __init__(self):
-        self.model = LinearRegression()
-        self.scaler = StandardScaler()
+# Load the dataset
+data = pd.read_csv('c:/Users/hk908/OneDrive/Documents/c0de/Stock_Analysis_Prediction_Model/data/AAPL_stock_data.csv')
+# Select features and target variable
+features = ['Close', 'High', 'Low', 'Open', 'Volume', 'EPS', 'Revenue', 'ROE', 'P/E']
+X = data[features]
+y = data['Close']
 
-    def train(self, X, y):
-        """
-        Train the Linear Regression model.
+# Split the data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-        Args:
-            X (pd.DataFrame): Features for training.
-            y (pd.Series): Target variable (stock prices).
-        """
-        try:
-            X_scaled = self.scaler.fit_transform(X)  # Scale features
-            self.model.fit(X_scaled, y)
-            print("Model trained successfully.")
-        except Exception as e:
-            print(f"Error during training: {e}")
+# Train the linear regression model
+model = LinearRegression()
+model.fit(X_train, y_train)
 
-    def predict(self, X):
-        """
-        Predict using the trained Linear Regression model.
+# Make predictions
+y_pred = model.predict(X_test)
 
-        Args:
-            X (pd.DataFrame): Features for prediction.
+# Calculate the mean squared error
+mse = mean_squared_error(y_test, y_pred)
+print(f'Mean Squared Error: {mse}')
 
-        Returns:
-            np.ndarray: Predicted values.
-        """
-        try:
-            X_scaled = self.scaler.transform(X)  # Scale features using fitted scaler
-            return self.model.predict(X_scaled)
-        except Exception as e:
-            print(f"Error during prediction: {e}")
-            return None
+# Plot the results
+plt.figure(figsize=(10, 6))
+plt.scatter(y_test, y_pred, alpha=0.5)
+plt.xlabel('Actual Close Prices')
+plt.ylabel('Predicted Close Prices')
+plt.title('Actual vs Predicted Close Prices')
+plt.savefig('images/actual_vs_predicted.png')
+plt.show()
 
-    def save(self, filepath):
-        """
-        Save the model and scaler to a file.
+# Save the trained model
+model_path = 'models/linear_regression_model.pkl'
+os.makedirs(os.path.dirname(model_path), exist_ok=True)
+joblib.dump(model, model_path)
+# Predict future stock prices
+future_dates = pd.date_range(start=data['Date'].max(), periods=30, freq='B')  # Predict for the next 30 business days
+future_data = pd.DataFrame(index=future_dates, columns=features)
 
-        Args:
-            filepath (str): File path to save the model.
-        """
-        try:
-            with open(filepath, 'wb') as file:
-                pickle.dump({'model': self.model, 'scaler': self.scaler}, file)
-            print(f"Model saved to {filepath}")
-        except Exception as e:
-            print(f"Error saving the model: {e}")
+# Assuming the future data is not available, we will use the last available data for prediction
+last_available_data = data[features].iloc[-1]
 
-    @classmethod
-    def load(cls, filepath):
-        """
-        Load the model and scaler from a file.
+for feature in features:
+    future_data[feature] = last_available_data[feature]
 
-        Args:
-            filepath (str): File path to load the model.
+future_predictions = model.predict(future_data)
 
-        Returns:
-            LinearRegressionModel: Loaded model.
-        """
-        try:
-            with open(filepath, 'rb') as file:
-                data = pickle.load(file)
-                model = cls()
-                model.model = data['model']
-                model.scaler = data['scaler']
-                print(f"Model loaded from {filepath}")
-                return model
-        except Exception as e:
-            print(f"Error loading the model: {e}")
-            return None
+# Save future predictions to a CSV file
+future_data['Predicted Close'] = future_predictions
+future_data.to_csv('data/future_predictions.csv')
 
-
-def prepare_data(data):
-    """
-    Prepare the data for training and prediction.
-
-    Args:
-        data (pd.DataFrame): Input stock data.
-
-    Returns:
-        tuple: Features (X) and target (y) for the model.
-    """
-    try:
-        # Handle missing values by forward filling
-        data.fillna(method='ffill', inplace=True)
-
-        # Ensure required columns are present
-        if 'Close' not in data.columns:
-            raise ValueError("The 'Close' column is missing from the data.")
-
-        # Separate features and target
-        X = data.drop(columns=['Close', 'Date'], errors='ignore')
-        y = data['Close']
-
-        return X, y
-    except Exception as e:
-        print(f"Error preparing data: {e}")
-        return None, None
-
-
-def train_linear_regression(file_path, save_path):
-    """
-    Train a Linear Regression model on stock data and save it.
-
-    Args:
-        file_path (str): Path to the CSV file containing stock data.
-        save_path (str): Path to save the trained model.
-
-    Returns:
-        LinearRegressionModel: Trained model.
-    """
-    try:
-        # Load and preprocess data
-        data = pd.read_csv(file_path)
-        data['Date'] = pd.to_datetime(data['Date'], errors='coerce')
-
-        # Prepare features and target for training
-        X, y = prepare_data(data)
-
-        if X is None or y is None:
-            raise ValueError("Failed to prepare data for training.")
-
-        # Initialize and train the model
-        model = LinearRegressionModel()
-        model.train(X, y)
-
-        # Save the trained model
-        model.save(save_path)
-        return model
-    except Exception as e:
-        print(f"Error during training process: {e}")
-        return None
-
-
-def predict_linear_regression(model, X):
-    """
-    Predict stock prices using a trained Linear Regression model.
-
-    Args:
-        model (LinearRegressionModel): Trained model.
-        X (pd.DataFrame): Features for prediction.
-
-    Returns:
-        np.ndarray: Predicted stock prices.
-    """
-    try:
-        return model.predict(X)
-    except Exception as e:
-        print(f"Error during prediction: {e}")
-        return None
-
-
-# Example usage
-if __name__ == "__main__":
-    file_path = "data/AAPL_stock_data.csv"  # Replace with actual path
-    save_path = "models/linear_regression_model.pkl"
-
-    # Train the model
-    trained_model = train_linear_regression(file_path, save_path)
-
-    # Example prediction
-    if trained_model:
-        data = pd.read_csv(file_path)
-        X, _ = prepare_data(data)
-        predictions = predict_linear_regression(trained_model, X)
-        print("Sample Predictions:", predictions[:5])
+print("Future stock price predictions saved to 'future_predictions.csv'")
