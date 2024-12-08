@@ -8,7 +8,7 @@ import os
 import matplotlib.pyplot as plt
 
 # Load the dataset
-data = pd.read_csv('c:/Users/hk908/OneDrive/Documents/c0de/Stock_Analysis_Prediction_Model/data/stock_data.csv')
+data = pd.read_csv('data/stock_data.csv')
 # Select features and target variable
 features = ['Close', 'High', 'Low', 'Open', 'Volume', 'EPS', 'Revenue', 'ROE', 'P/E']
 X = data[features]
