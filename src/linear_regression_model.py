@@ -8,7 +8,7 @@ import os
 import matplotlib.pyplot as plt
 
 # Load the dataset
-data = pd.read_csv('c:/Users/hk908/OneDrive/Documents/c0de/Stock_Analysis_Prediction_Model/data/AAPL_stock_data.csv')
+data = pd.read_csv('c:/Users/hk908/OneDrive/Documents/c0de/Stock_Analysis_Prediction_Model/data/stock_data.csv')
 # Select features and target variable
 features = ['Close', 'High', 'Low', 'Open', 'Volume', 'EPS', 'Revenue', 'ROE', 'P/E']
 X = data[features]
@@ -33,8 +33,8 @@ plt.figure(figsize=(10, 6))
 plt.scatter(y_test, y_pred, alpha=0.5)
 plt.xlabel('Actual Close Prices')
 plt.ylabel('Predicted Close Prices')
-plt.title('Actual vs Predicted Close Prices')
-plt.savefig('images/actual_vs_predicted.png')
+plt.title('Actual vs Predicted Close Prices using Linear Regression')
+plt.savefig('images/lr_actual_vs_predicted.png')
 plt.show()
 
 # Save the trained model
@@ -55,6 +55,6 @@ future_predictions = model.predict(future_data)
 
 # Save future predictions to a CSV file
 future_data['Predicted Close'] = future_predictions
-future_data.to_csv('data/future_predictions.csv')
+future_data.to_csv('data/future_predictions_lr.csv')
 
-print("Future stock price predictions saved to 'future_predictions.csv'")
+print("Future stock price predictions saved to 'future_predictions_using_lr.csv'")
