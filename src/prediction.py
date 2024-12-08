@@ -3,8 +3,8 @@ import os
 
 def combine_predictions():
     # Load the two CSV files containing predictions
-    lr_predictions_path = 'data/future_prediction_lr.csv'
-    lstm_predictions_path = 'data/future_predictions_lstm.csv'
+    lr_predictions_path = r'C:/Users/hk908/OneDrive/Documents/c0de/Stock_Analysis_Prediction_Model/data/future_prediction_lr.csv'
+    lstm_predictions_path = r'C:/Users/hk908/OneDrive/Documents/c0de/Stock_Analysis_Prediction_Model/data/future_predictions_lstm.csv'
 
     # Check if both files exist
     if os.path.exists(lr_predictions_path) and os.path.exists(lstm_predictions_path):
