@@ -5,8 +5,8 @@ from sklearn.metrics import mean_squared_error
 import matplotlib.pyplot as plt
 import os
 # import joblib
-from keras.models import Sequential
-from keras.layers import LSTM, Dense
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense
 
 # Load the dataset
 data = pd.read_csv('data/stock_data.csv')
@@ -45,7 +45,7 @@ model.add(Dense(1))
 model.compile(optimizer='adam', loss='mean_squared_error')
 
 # Train the model
-model.fit(X_train, y_train, batch_size=1, epochs=10)
+model.fit(X_train, y_train, batch_size=1, epochs=1)
 
 # Make predictions
 y_pred = model.predict(X_test)
@@ -66,7 +66,7 @@ plt.savefig('images/lstm_actual_vs_predicted.png')
 plt.show()
 
 # Save the trained model
-model_path = 'models/lstm_model.h5'
+model_path = 'models/lstm_model.keras'
 os.makedirs(os.path.dirname(model_path), exist_ok=True)
 model.save(model_path)
 
@@ -87,8 +87,14 @@ for i in range(len(scaled_future_data) - time_step):
     X_future.append(scaled_future_data[i:(i + time_step), :])
 
 X_future = np.array(X_future)
-future_predictions = model.predict(X_future)
-future_predictions = scaler.inverse_transform(np.concatenate((future_predictions, np.zeros((future_predictions.shape[0], len(features) - 1))), axis=1))[:, 0]
+if len(X_future) > 0:
+    future_predictions = model.predict(X_future)
+else:
+    future_predictions = np.array([])
+if future_predictions.size > 0:
+    future_predictions = scaler.inverse_transform(np.concatenate((future_predictions, np.zeros((future_predictions.shape[0], len(features) - 1))), axis=1))[:, 0]
+else:
+    future_predictions = np.zeros(len(future_data))
 
 # Save future predictions to a CSV file
 future_data['Predicted Close'] = future_predictions
