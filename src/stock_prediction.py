@@ -5,8 +5,8 @@ from lstm_model import train_lstm_model
 
 def main():
     # Parameters
-    ticker_symbol = 'AAPL'  # Example: Apple Inc.
-    start_date = '2010-01-01'  # Start date
+    ticker_symbol = 'AAPL' #input("Enter a Stock Ticker Symbol (e.g., AAPl): ")  # Example: Apple Inc.
+    start_date = '2010-01-01' #input("Enter the start date (YYYY-MM-DD): ")  # Start date
     end_date = None  # Use None for the current date (optional)
 
     # Fetch stock data
