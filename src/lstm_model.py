@@ -1,90 +1,97 @@
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense
-import os
+from sklearn.metrics import mean_squared_error
 import matplotlib.pyplot as plt
-from datetime import timedelta
+import os
+# import joblib
+from keras.models import Sequential
+from keras.layers import LSTM, Dense
 
 # Load the dataset
-data = pd.read_csv('data/AAPL_stock_data.csv')
-if data.empty:
-    raise FileNotFoundError("The file 'AAPL_stock_prediction.csv' was not found or is empty.")
+data = pd.read_csv('data/stock_data.csv')
+data['Date'] = pd.to_datetime(data['Date'])
+data.set_index('Date', inplace=True)
 
-# Select features
+# Select features and target variable
 features = ['Close', 'High', 'Low', 'Open', 'Volume', 'EPS', 'Revenue', 'ROE', 'P/E']
-data = data[features]
-
-# Normalize the data
 scaler = MinMaxScaler(feature_range=(0, 1))
-scaled_data = scaler.fit_transform(data)
+scaled_data = scaler.fit_transform(data[features])
 
-# Create training and testing datasets
-train_size = int(len(scaled_data) * 0.8)
-train_data = scaled_data[:train_size]
-test_data = scaled_data[train_size:]
-
-# Create sequences
-def create_sequences(data, seq_length):
-    X = []
-    y = []
-    for i in range(seq_length, len(data)):
-        X.append(data[i-seq_length:i])
-        y.append(data[i, 0])  # Predicting the 'Close' price
+# Prepare the data for LSTM
+def create_dataset(dataset, time_step=1):
+    X, y = [], []
+    for i in range(len(dataset) - time_step - 1):
+        a = dataset[i:(i + time_step), :]
+        X.append(a)
+        y.append(dataset[i + time_step, 0])
     return np.array(X), np.array(y)
 
-seq_length = 60
-X_train, y_train = create_sequences(train_data, seq_length)
-X_test, y_test = create_sequences(test_data, seq_length)
+time_step = 60
+X, y = create_dataset(scaled_data, time_step)
+
+# Split the data into training and testing sets
+train_size = int(len(X) * 0.8)
+X_train, X_test = X[:train_size], X[train_size:]
+y_train, y_test = y[:train_size], y[train_size:]
 
 # Build the LSTM model
 model = Sequential()
-model.add(LSTM(units=50, return_sequences=True, input_shape=(X_train.shape[1], X_train.shape[2])))
-model.add(LSTM(units=50))
+model.add(LSTM(50, return_sequences=True, input_shape=(time_step, len(features))))
+model.add(LSTM(50, return_sequences=False))
+model.add(Dense(25))
 model.add(Dense(1))
 
 model.compile(optimizer='adam', loss='mean_squared_error')
 
 # Train the model
-model.fit(X_train, y_train, epochs=20, batch_size=32)
+model.fit(X_train, y_train, batch_size=1, epochs=10)
 
 # Make predictions
-predictions = model.predict(X_test)
-predictions = scaler.inverse_transform(np.concatenate((predictions, np.zeros((predictions.shape[0], len(features) - 1))), axis=1))[:, 0]
+y_pred = model.predict(X_test)
+y_pred = scaler.inverse_transform(np.concatenate((y_pred, np.zeros((y_pred.shape[0], len(features) - 1))), axis=1))[:, 0]
+y_test = scaler.inverse_transform(np.concatenate((y_test.reshape(-1, 1), np.zeros((y_test.shape[0], len(features) - 1))), axis=1))[:, 0]
 
-# Future prediction
-future_days = 30
-last_sequence = scaled_data[-seq_length:]
-future_predictions = []
-
-for _ in range(future_days):
-    next_pred = model.predict(last_sequence[np.newaxis, :, :])[0, 0]
-    future_predictions.append(next_pred)
-    next_sequence = np.append(last_sequence[1:], [[next_pred] + [0] * (len(features) - 1)], axis=0)
-
-future_predictions = scaler.inverse_transform(np.concatenate((np.array(future_predictions).reshape(-1, 1), np.zeros((future_days, len(features) - 1))), axis=1))[:, 0]
-
-# Extend the date range for future predictions
-last_date = pd.to_datetime(data.index[-1])
-future_dates = [last_date + timedelta(days=i) for i in range(1, future_days + 1)]
-
-# Save future predictions to CSV
-future_predictions_df = pd.DataFrame({'Date': future_dates, 'Predicted Close Price': future_predictions})
-future_predictions_df.to_csv('data/future_predictions.csv', index=False)
+# Calculate the mean squared error
+mse = mean_squared_error(y_test, y_pred)
+print(f'Mean Squared Error: {mse}')
 
 # Plot the results
-plt.figure(figsize=(14, 5))
-plt.plot(data.index[train_size + seq_length:], data['Close'][train_size + seq_length:], color='blue', label='Actual Stock Price')
-plt.plot(data.index[train_size + seq_length:], predictions, color='red', label='Predicted Stock Price')
-plt.plot(future_dates, future_predictions, color='green', label='Future Predictions')
-plt.title('AAPL Stock Price Prediction')
-plt.xlabel('Date')
-plt.ylabel('Stock Price')
-plt.legend()
-
-# Save the plot
-if not os.path.exists('image'):
-    os.makedirs('image')
-plt.savefig('image/AAPL_stock_price_prediction.png')
+plt.figure(figsize=(10, 6))
+plt.scatter(y_test, y_pred, alpha=0.5)
+plt.xlabel('Actual Close Prices')
+plt.ylabel('Predicted Close Prices')
+plt.title('Actual vs Predicted Close Prices using LSTM')
+plt.savefig('images/lstm_actual_vs_predicted.png')
 plt.show()
+
+# Save the trained model
+model_path = 'models/lstm_model.h5'
+os.makedirs(os.path.dirname(model_path), exist_ok=True)
+model.save(model_path)
+
+# Predict future stock prices
+future_dates = pd.date_range(start=data.index.max(), periods=30, freq='B')  # Predict for the next 30 business days
+future_data = pd.DataFrame(index=future_dates, columns=features)
+
+# Assuming the future data is not available, we will use the last available data for prediction
+last_available_data = data[features].iloc[-1]
+
+for feature in features:
+    future_data[feature] = last_available_data[feature]
+
+scaled_future_data = scaler.transform(future_data)
+X_future = []
+
+for i in range(len(scaled_future_data) - time_step):
+    X_future.append(scaled_future_data[i:(i + time_step), :])
+
+X_future = np.array(X_future)
+future_predictions = model.predict(X_future)
+future_predictions = scaler.inverse_transform(np.concatenate((future_predictions, np.zeros((future_predictions.shape[0], len(features) - 1))), axis=1))[:, 0]
+
+# Save future predictions to a CSV file
+future_data['Predicted Close'] = future_predictions
+future_data.to_csv('data/future_predictions_lstm.csv')
+
+print("Future stock price predictions saved to 'future_predictions_lstm.csv'")
