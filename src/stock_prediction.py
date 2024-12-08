@@ -1,115 +1,120 @@
+import os
 import pandas as pd
-import matplotlib.pyplot as plt
-from lstm_model import load_lstm_model, forecast_future
+from lstm_model import train_lstm_model, forecast_future, load_lstm_model
 from linear_regression_model import train_linear_regression, predict_linear_regression
+import matplotlib.pyplot as plt
 
-# Define paths
-data_path = "../data/AAPL.csv"
-lstm_model_path = "../models/lstm_model.pth"
-lstm_scaler_path = "../models/lstm_scaler.pkl"
-linear_model_path = "../models/linear_regression.pkl"
+# Define paths for data and models
+data_path = "data/AAPL_stock_data.csv"  # Update with your actual path
+lstm_model_path = "models/lstm_model.pth"
+lstm_scaler_path = "models/lstm_scaler.pkl"
+linear_regression_model_path = "models/linear_regression.pkl"
+forecast_days = 30  # Number of days to forecast
+
+# Check if models directory exists, if not create it
+if not os.path.exists("models"):
+    os.makedirs("models")
 
 # Load the dataset
-try:
-    data = pd.read_csv(data_path)
-    data['Date'] = pd.to_datetime(data['Date'], utc=True)
-except FileNotFoundError:
-    print(f"Error: Dataset file not found at {data_path}. Please check the file path.")
-    exit()
+def load_data(file_path):
+    try:
+        data = pd.read_csv(file_path)
+        data['Date'] = pd.to_datetime(data['Date'], errors='coerce', utc=True)
+        return data
+    except FileNotFoundError:
+        print(f"Error: Dataset file not found at {file_path}. Please check the file path.")
+        return None
 
-# Extract the closing prices
-close_prices = data["Close"].values
+# Train LSTM model
+def train_lstm_model_wrapper(data):
+    model, scaler = train_lstm_model(data, lstm_model_path, lstm_scaler_path)
+    return model, scaler
 
-# ---------------- LSTM Model Prediction ---------------- #
-try:
-    # Load the trained LSTM model and scaler
-    input_size = 5  # Example number of features
-    hidden_size = 50
-    num_layers = 2
-    output_size = 1
+# Train Linear Regression model
+def train_linear_regression_wrapper(data):
+    model = train_linear_regression(data, linear_regression_model_path)
+    return model
 
-    model, scaler = load_lstm_model(
-        lstm_model_path, lstm_scaler_path, input_size, hidden_size, num_layers, output_size
-    )
+# Make predictions using LSTM and Linear Regression models
+def make_predictions(data, model, scaler, forecast_days):
+    # Prepare data for LSTM prediction (last 60 days)
+    close_prices = data["Close"].values
+    last_known_data = close_prices[-60:].reshape(1, -1)  # Using last 60 days as input
+    
+    # LSTM forecast
+    lstm_forecast = forecast_future(model, scaler, last_known_data, forecast_days)
 
-    # Define the number of future days to forecast
-    forecast_days = 30
+    # Prepare data for Linear Regression prediction
+    train_features, train_labels = train_linear_regression(data)
+    
+    # Linear Regression forecast
+    linear_regression_forecast = predict_linear_regression(model, train_features)
 
-    # Use the last 60 days as input for LSTM
-    last_known_data = data.iloc[-60:, 1:].values  # Adjust based on your features
-    if last_known_data.shape[0] < 60:
-        raise ValueError("Insufficient data for LSTM input. Ensure at least 60 days of historical data.")
+    return lstm_forecast, linear_regression_forecast
 
-    # Generate future predictions using LSTM
-    lstm_forecasted_prices = forecast_future(model, scaler, last_known_data, forecast_days)
-except Exception as e:
-    print(f"Error during LSTM prediction: {e}")
-    lstm_forecasted_prices = []
-
-# ---------------- Linear Regression Prediction ---------------- #
-try:
-    # Train the linear regression model and save it
-    linear_model = train_linear_regression(data_path, linear_model_path)
-
-    # Use the trained model for prediction
-    X, _ = data.iloc[-forecast_days:, 1:].values, data["Close"].iloc[-forecast_days:].values
-    linear_regression_forecasted_prices = predict_linear_regression(linear_model, X)
-except Exception as e:
-    print(f"Error during Linear Regression prediction: {e}")
-    linear_regression_forecasted_prices = []
-
-# ---------------- Visualization ---------------- #
-try:
-    # Combine actual and forecasted data for visualization
-    forecast_start_index = len(close_prices)
-
+# Plot the results
+def plot_results(actual_prices, lstm_forecast, linear_regression_forecast, forecast_days):
     plt.figure(figsize=(12, 6))
-    plt.plot(range(len(close_prices)), close_prices, label="Actual Prices", color="blue")
+    plt.plot(range(len(actual_prices)), actual_prices, label="Actual Prices", color="blue")
 
-    if lstm_forecasted_prices:
-        plt.plot(
-            range(forecast_start_index, forecast_start_index + forecast_days),
-            lstm_forecasted_prices,
-            label="LSTM Forecast",
-            color="orange"
-        )
+    # Plot LSTM predictions
+    plt.plot(range(len(actual_prices), len(actual_prices) + forecast_days),
+        lstm_forecast, label="LSTM Forecast", color="orange")
 
-    if linear_regression_forecasted_prices:
-        plt.plot(
-            range(forecast_start_index, forecast_start_index + len(linear_regression_forecasted_prices)),
-            linear_regression_forecasted_prices,
-            label="Linear Regression Forecast",
-            color="green"
-        )
+    # Plot Linear Regression predictions
+    plt.plot(range(len(actual_prices), len(actual_prices) + len(linear_regression_forecast)),
+        linear_regression_forecast, label="Linear Regression Forecast", color="green")
 
-    plt.axvline(x=forecast_start_index - 1, linestyle="--", color="gray", label="Forecast Start")
+    plt.axvline(x=len(actual_prices) - 1, linestyle="--", color="gray", label="Forecast Start")
     plt.legend()
     plt.title("Stock Price Prediction with LSTM and Linear Regression")
     plt.xlabel("Time (days)")
     plt.ylabel("Price")
     plt.grid(True)
     plt.show()
-except Exception as e:
-    print(f"Error during visualization: {e}")
 
-# ---------------- Save Predictions ---------------- #
-try:
-    # Save LSTM predictions to a CSV file
-    if lstm_forecasted_prices:
-        lstm_forecasted_df = pd.DataFrame({
-            "Day": range(1, forecast_days + 1),
-            "LSTM Forecasted Price": lstm_forecasted_prices
-        })
-        lstm_forecasted_df.to_csv("../data/lstm_forecasted_prices.csv", index=False)
-        print("LSTM forecasted prices saved to 'lstm_forecasted_prices.csv'.")
+# Save forecasted prices to CSV
+def save_forecasts(lstm_forecast, linear_regression_forecast, forecast_days):
+    # Save LSTM forecasted prices to CSV
+    lstm_forecast_df = pd.DataFrame({
+        "Day": range(1, forecast_days + 1),
+        "LSTM Forecasted Price": lstm_forecast
+    })
+    lstm_forecast_df.to_csv("../data/lstm_forecasted_prices.csv", index=False)
+    print("LSTM forecasted prices saved to 'lstm_forecasted_prices.csv'.")
 
-    # Save Linear Regression predictions to a CSV file
-    if linear_regression_forecasted_prices:
-        linear_forecasted_df = pd.DataFrame({
-            "Day": range(1, len(linear_regression_forecasted_prices) + 1),
-            "Linear Regression Forecasted Price": linear_regression_forecasted_prices
-        })
-        linear_forecasted_df.to_csv("../data/linear_regression_forecasted_prices.csv", index=False)
-        print("Linear Regression forecasted prices saved to 'linear_regression_forecasted_prices.csv'.")
-except Exception as e:
-    print(f"Error saving predictions: {e}")
+    # Save Linear Regression forecasted prices to CSV
+    linear_forecast_df = pd.DataFrame({
+        "Day": range(1, len(linear_regression_forecast) + 1),
+        "Linear Regression Forecasted Price": linear_regression_forecast
+    })
+    linear_forecast_df.to_csv("../data/linear_regression_forecasted_prices.csv", index=False)
+    print("Linear Regression forecasted prices saved to 'linear_regression_forecasted_prices.csv'.")
+
+def main():
+    # Load and preprocess the dataset
+    data = load_data(data_path)
+    if data is None:
+        return
+
+    # Train models
+    print("Training LSTM model...")
+    lstm_model, lstm_scaler = train_lstm_model_wrapper(data)
+
+    print("Training Linear Regression model...")
+    linear_regression_model = train_linear_regression_wrapper(data)
+
+    # Make predictions
+    print("Making predictions...")
+    lstm_forecast, linear_regression_forecast = make_predictions(data, lstm_model, lstm_scaler, forecast_days)
+
+    # Plot the results
+    print("Plotting the results...")
+    plot_results(data['Close'].values, lstm_forecast, linear_regression_forecast, forecast_days)
+
+    # Save the forecasts
+    print("Saving forecasted data...")
+    save_forecasts(lstm_forecast, linear_regression_forecast, forecast_days)
+
+if __name__ == "__main__":
+    main()

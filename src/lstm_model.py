@@ -2,14 +2,12 @@ import torch
 import torch.nn as nn
 import numpy as np
 import pandas as pd
-import pickle
 from sklearn.preprocessing import StandardScaler
+import pickle
+import os
 
-
+# Define the LSTM Model class
 class LSTMModel(nn.Module):
-    """
-    LSTM Model for stock price prediction.
-    """
     def __init__(self, input_size, hidden_size, num_layers, output_size):
         super(LSTMModel, self).__init__()
         self.hidden_size = hidden_size
@@ -18,130 +16,98 @@ class LSTMModel(nn.Module):
         self.fc = nn.Linear(hidden_size, output_size)
 
     def forward(self, x):
-        # Initialize hidden and cell states
         h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
         c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
-
-        # Forward propagate through LSTM
         out, _ = self.lstm(x, (h0, c0))
-        
-        # Pass the output through the fully connected layer
-        out = self.fc(out[:, -1, :])  # Use the last time step's output
+        out = self.fc(out[:, -1, :])
         return out
 
 
-def save_lstm_model(model, scaler, model_path, scaler_path):
-    """
-    Save the trained LSTM model and the associated scaler.
+# Train the LSTM model
+def train_lstm_model(data, model_path, scaler_path, input_size=1, hidden_size=100, num_layers=2, output_size=1):
+    # Prepare the data
+    close_prices = data["Close"].values
+    scaler = StandardScaler()
+    close_prices_scaled = scaler.fit_transform(close_prices.reshape(-1, 1))
 
-    Args:
-        model (LSTMModel): Trained LSTM model.
-        scaler (StandardScaler): Scaler used for feature scaling.
-        model_path (str): Path to save the model.
-        scaler_path (str): Path to save the scaler.
-    """
-    try:
-        torch.save(model.state_dict(), model_path)
-        with open(scaler_path, 'wb') as f:
-            pickle.dump(scaler, f)
-        print(f"Model saved to {model_path} and scaler saved to {scaler_path}.")
-    except Exception as e:
-        print(f"Error saving model or scaler: {e}")
+    # Create the dataset for training (using previous 60 days to predict the next day)
+    def create_dataset(data, time_step=60):
+        X, y = [], []
+        for i in range(time_step, len(data)):
+            X.append(data[i-time_step:i, 0])
+            y.append(data[i, 0])
+        return np.array(X), np.array(y)
+
+    X, y = create_dataset(close_prices_scaled)
+    X = X.reshape(X.shape[0], X.shape[1], input_size)
+
+    # Convert data to PyTorch tensors
+    X_train = torch.tensor(X, dtype=torch.float32)
+    y_train = torch.tensor(y, dtype=torch.float32)
+
+    # Initialize the LSTM model
+    model = LSTMModel(input_size, hidden_size, num_layers, output_size)
+
+    # Define the loss function and optimizer
+    criterion = nn.MSELoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+
+    # Train the model
+    epochs = 100
+    for epoch in range(epochs):
+        model.train()
+        optimizer.zero_grad()
+        outputs = model(X_train)
+        loss = criterion(outputs.flatten(), y_train)
+        loss.backward()
+        optimizer.step()
+        
+        if (epoch + 1) % 10 == 0:
+            print(f'Epoch [{epoch+1}/{epochs}], Loss: {loss.item():.4f}')
+
+    # Save the trained model and scaler
+    torch.save(model.state_dict(), model_path)
+    with open(scaler_path, 'wb') as f:
+        pickle.dump(scaler, f)
+    
+    print(f"Model saved to {model_path} and scaler saved to {scaler_path}.")
+    return model, scaler
 
 
+# Load the LSTM model and scaler
 def load_lstm_model(model_path, scaler_path, input_size, hidden_size, num_layers, output_size):
-    """
-    Load the trained LSTM model and the scaler.
+    # Recreate the model architecture
+    model = LSTMModel(input_size, hidden_size, num_layers, output_size)
+    model.load_state_dict(torch.load(model_path))
+    model.eval()  # Set the model to evaluation mode
 
-    Args:
-        model_path (str): Path to the saved model.
-        scaler_path (str): Path to the saved scaler.
-        input_size (int): Number of input features.
-        hidden_size (int): Number of hidden units in LSTM.
-        num_layers (int): Number of LSTM layers.
-        output_size (int): Number of output features.
+    # Load the scaler
+    with open(scaler_path, 'rb') as f:
+        scaler = pickle.load(f)
 
-    Returns:
-        tuple: Loaded LSTM model and scaler.
-    """
-    try:
-        # Initialize the model with the same architecture
-        model = LSTMModel(input_size, hidden_size, num_layers, output_size)
-        model.load_state_dict(torch.load(model_path))
-        model.eval()  # Set the model to evaluation mode
-
-        # Load the scaler
-        with open(scaler_path, 'rb') as f:
-            scaler = pickle.load(f)
-
-        print(f"Model and scaler loaded successfully from {model_path} and {scaler_path}.")
-        return model, scaler
-    except Exception as e:
-        print(f"Error loading model or scaler: {e}")
-        return None, None
+    return model, scaler
 
 
+# Forecast future prices using the trained LSTM model
 def forecast_future(model, scaler, last_known_data, forecast_days):
-    """
-    Forecast future stock prices using the trained LSTM model.
+    model.eval()  # Ensure the model is in evaluation mode
 
-    Args:
-        model (LSTMModel): Trained LSTM model.
-        scaler (StandardScaler): Scaler used during training.
-        last_known_data (np.ndarray): Last known stock data as input (2D array).
-        forecast_days (int): Number of future days to forecast.
+    predictions = []
+    input_data = last_known_data
 
-    Returns:
-        list: Predicted stock prices for the forecast period.
-    """
-    try:
-        model.eval()  # Ensure the model is in evaluation mode
-        predictions = []
-        input_data = last_known_data
+    for _ in range(forecast_days):
+        # Only scale the last feature (closing price), not the entire array
+        input_scaled = scaler.transform(input_data[:, -1].reshape(-1, 1))  # Reshape to 2D array for scaling
+        input_tensor = torch.tensor(input_scaled, dtype=torch.float32).unsqueeze(0)
 
-        for _ in range(forecast_days):
-            # Scale the input data
-            input_scaled = scaler.transform(input_data)
-            input_tensor = torch.tensor(input_scaled, dtype=torch.float32).unsqueeze(0)
+        # Generate the prediction
+        with torch.no_grad():
+            prediction = model(input_tensor).item()
 
-            # Move to the same device as the model
-            device = next(model.parameters()).device
-            input_tensor = input_tensor.to(device)
+        predictions.append(prediction)
 
-            # Generate the prediction
-            with torch.no_grad():
-                prediction = model(input_tensor).item()
+        # Append the prediction to input data for the next step
+        next_input = np.append(input_data[0][1:], prediction).reshape(1, -1)
+        input_data = next_input
 
-            predictions.append(prediction)
-
-            # Prepare the next input by appending the prediction
-            next_input = np.append(input_data[0][1:], prediction).reshape(1, -1)
-            input_data = next_input
-
-        return predictions
-    except Exception as e:
-        print(f"Error during forecasting: {e}")
-        return None
-
-
-# Example usage
-if __name__ == "__main__":
-    # Parameters
-    input_size = 5  # Example: Number of features
-    hidden_size = 50
-    num_layers = 2
-    output_size = 1
-    model_path = "models/lstm_model.pth"
-    scaler_path = "models/lstm_scaler.pkl"
-
-    # Load a trained model and scaler
-    model, scaler = load_lstm_model(model_path, scaler_path, input_size, hidden_size, num_layers, output_size)
-
-    # Example: Forecasting future prices
-    if model and scaler:
-        # Example last known data (replace with actual data)
-        last_known_data = np.array([[100, 101, 99, 100, 5000]])  # Adjust based on your features
-        forecast_days = 5  # Predict the next 5 days
-
-        predictions = forecast_future(model, scaler, last_known_data, forecast_days)
-        print("Predicted Prices:", predictions)
+    return predictions
