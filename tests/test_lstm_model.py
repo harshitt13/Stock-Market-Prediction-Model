@@ -1,7 +1,7 @@
 import unittest
 import os
 import pandas as pd
-from tensorflow.keras.models import load_model
+from tensorflow.keras.models import load_model # type: ignore
 from lstm_model import train_lstm_model
 
 class TestTrainLSTMModel(unittest.TestCase):
