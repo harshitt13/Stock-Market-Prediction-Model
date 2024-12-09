@@ -1,5 +1,6 @@
+# Stock Analysis Prediction Model
+
 <div align="center">
-##Stock Analysis Prediction Model
 
 ![GitHub last commit](https://img.shields.io/github/last-commit/harshitt13/Stock-Market-Prediction-Model)
 ![GitHub repo size](https://img.shields.io/github/repo-size/harshitt13/Stock-Market-Prediction-Model)
