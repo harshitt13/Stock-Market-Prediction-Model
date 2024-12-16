@@ -5,6 +5,7 @@
 ![GitHub last commit](https://img.shields.io/github/last-commit/harshitt13/Stock-Market-Prediction-Model)
 ![GitHub repo size](https://img.shields.io/github/repo-size/harshitt13/Stock-Market-Prediction-Model)
 ![GitHub stars](https://img.shields.io/github/stars/harshitt13/Stock-Market-Prediction-Model)
+[![wakatime](https://wakatime.com/badge/github/harshitt13/Stock-Market-Prediction-Using-ML.svg)](https://wakatime.com/badge/github/harshitt13/Stock-Market-Prediction-Using-ML)
 
 </div>
 
