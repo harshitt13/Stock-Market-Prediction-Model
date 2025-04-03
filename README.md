@@ -81,18 +81,11 @@ To fetch historical stock data:
 python src/fetch_data.py
 ```
 
-### Training Models
+### Training Models & Running Predictions
 
-To train both Linear Regression and LSTM models:
+To train both Linear Regression and LSTM models & run predictions and compare model performance:
 ```bash
-python src/stock_prediction.py
-```
-
-### Running Predictions
-
-To run predictions and compare model performance:
-```bash
-python main.py
+python src/main.py
 ```
 
 ## ⚖️ Model Comparison
@@ -151,7 +144,7 @@ Distributed under the MIT License. See `LICENSE` for more information.
 [![Github](https://img.shields.io/badge/-Github-000?style=flat&logo=Github&logoColor=white)](https://github.com/harshitt13)
 
 **Harshit Kushwaha 🧑‍💻**  
-ML/AI Developer
+Developer
 
 📧 find.harshitkushwaha@gmail.com
 
