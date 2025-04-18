@@ -13,7 +13,7 @@
 
 This project implements a stock price prediction model using two different machine learning approaches: linear regression and Long-Short-Term Memory (LSTM) neural networks. The goal is to provide predictive insights into stock price movements using historical data from Yahoo Finance.
 
-
+Research Paper - https://1drv.ms/b/c/87e0048ba6376a7d/EUPKbpK_j6dIgtuLYuGBNnQBpwREqJubv3_DSX9T34SmkQ
 Video Demonstration - https://youtu.be/z8sXhWrwU0o
 
 ## 💻 Features
