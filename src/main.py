@@ -9,43 +9,24 @@ def combine_predictions():
     lr_predictions_path = 'data/future_predictions_lr.csv'
     lstm_predictions_path = 'data/future_predictions_lstm.csv'
 
-    # List of required features
-    required_features = ['date', 'Close', 'High', 'Low', 'Open', 'Volume', 'EPS', 'Revenue', 'ROE', 'P/E']
-
     # Check if both files exist
     if os.path.exists(lr_predictions_path) and os.path.exists(lstm_predictions_path):
-        # Read the CSV files with the first column explicitly set as 'date'
         lr_predictions = pd.read_csv(lr_predictions_path, header=0)
         lstm_predictions = pd.read_csv(lstm_predictions_path, header=0)
 
-        # Add the missing header for the date column if needed
-        if lr_predictions.columns[0] != 'date':
-            lr_predictions.rename(columns={lr_predictions.columns[0]: 'date'}, inplace=True)
-
-        if lstm_predictions.columns[0] != 'date':
-            lstm_predictions.rename(columns={lstm_predictions.columns[0]: 'date'}, inplace=True)
-
-        # Filter only the required features from both DataFrames
-        lr_predictions = lr_predictions[required_features]
-        lstm_predictions = lstm_predictions[required_features]
-
-        # Perform a natural join using 'inner' method
+        # Merge on date
         combined_predictions = pd.merge(lr_predictions, lstm_predictions, how='inner', on='date')
+        
+        # Add a simple hybrid column
+        combined_predictions['Predicted Close Hybrid (Avg)'] = (combined_predictions['Predicted Close LR'] + combined_predictions['Predicted Close LSTM']) / 2.0
 
-        # Remove duplicate columns resulting from the join (e.g., 'Close_x' and 'Close_y')
-        combined_predictions = combined_predictions.loc[:, ~combined_predictions.columns.duplicated()]
-
-        # Sort the combined predictions by the date column
         combined_predictions.sort_values(by='date', inplace=True)
-
-        # Ensure the data directory exists
         os.makedirs('data', exist_ok=True)
-
-        # Save the combined predictions to a new CSV file
+        
         combined_predictions_path = 'data/combined_predictions.csv'
         combined_predictions.to_csv(combined_predictions_path, index=False)
-        
         print(f"Combined predictions saved to '{combined_predictions_path}'")
+        print(combined_predictions.head())
     else:
         print("One or both prediction files do not exist.")
 

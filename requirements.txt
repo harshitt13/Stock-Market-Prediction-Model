@@ -1,8 +1,7 @@
-torch==2.5.0
-pandas==2.2.3
-numpy==1.26.4
-matplotlib==3.9.2
-scikit-learn==1.5.2
-yfinance==0.2.48
-joblib==1.4.2
-tensorflow==2.18.0
+pandas
+numpy
+matplotlib
+scikit-learn
+yfinance
+joblib
+tensorflow
