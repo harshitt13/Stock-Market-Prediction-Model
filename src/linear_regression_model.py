@@ -1,7 +1,7 @@
 import pandas as pd
-from sklearn.model_selection import train_test_split
+import numpy as np
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import joblib
 import os
 import matplotlib.pyplot as plt
@@ -9,57 +9,80 @@ import matplotlib.pyplot as plt
 def train_linear_regression_model(data):
     """
     Train and evaluate a linear regression model on the given stock data.
-
-    Args:
-        data (pd.DataFrame): The stock data to train the model on.
     """
-    # Select features and target variable
-    features = ['Close', 'High', 'Low', 'Open', 'Volume', 'EPS', 'Revenue', 'ROE', 'P/E']
-    X = data[features]
-    y = data['Close']
+    df = data.copy()
+    
+    # Select features
+    features = ['Close', 'High', 'Low', 'Open', 'Volume', 'SMA_20', 'SMA_50', 'RSI_14', 'Log_Return']
+    
+    # We want to predict the NEXT day's Close, so we shift target backwards
+    df['Target_Close'] = df['Close'].shift(-1)
+    
+    # Drop rows without a target (the last row)
+    df.dropna(subset=['Target_Close'], inplace=True)
+    
+    X = df[features]
+    y = df['Target_Close']
 
-    # Split the data into training and testing sets
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    # Chronological Split (80% train, 20% test)
+    train_size = int(len(X) * 0.8)
+    X_train, X_test = X.iloc[:train_size], X.iloc[train_size:]
+    y_train, y_test = y.iloc[:train_size], y.iloc[train_size:]
 
-    # Train the linear regression model
+    # Train
     model = LinearRegression()
     model.fit(X_train, y_train)
 
-    # Make predictions
+    # Make predictions on Test Set
     y_pred = model.predict(X_test)
 
-    # Calculate the mean squared error
+    # Evaluation
     mse = mean_squared_error(y_test, y_pred)
-    print(f'Mean Squared Error: {mse}')
+    mae = mean_absolute_error(y_test, y_pred)
+    r2 = r2_score(y_test, y_pred)
+    print(f'Linear Regression - Test MSE: {mse:.4f}, MAE: {mae:.4f}, R2: {r2:.4f}')
 
-    # Plot the results
+    # Plot
+    os.makedirs('images', exist_ok=True)
     plt.figure(figsize=(10, 6))
-    plt.scatter(y_test, y_pred, alpha=0.5)
-    plt.xlabel('Actual Close Prices')
-    plt.ylabel('Predicted Close Prices')
+    # Plot sequence rather than scatter
+    plt.plot(df['Date'].iloc[train_size:].values, y_test.values, label='Actual Next Day Close')
+    plt.plot(df['Date'].iloc[train_size:].values, y_pred, label='Predicted Close', alpha=0.7)
+    plt.xlabel('Date')
+    plt.ylabel('Close Price')
     plt.title('Actual vs Predicted Close Prices using Linear Regression')
+    plt.legend()
     plt.savefig('images/lr_actual_vs_predicted.png')
-    plt.show()
+    # plt.show() # Disabled to prevent blocking terminal
 
-    # Save the trained model
+    # Save
     model_path = 'models/linear_regression_model.pkl'
     os.makedirs(os.path.dirname(model_path), exist_ok=True)
     joblib.dump(model, model_path)
 
-    # Predict future stock prices
-    future_dates = pd.date_range(start=data['Date'].max(), periods=30, freq='B')  # Predict for the next 30 business days
-    future_data = pd.DataFrame(index=future_dates, columns=features)
+    # Predict Future 30 business days Walk-Forward
+    last_date = pd.to_datetime(data['Date']).max()
+    future_dates = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=30, freq='B')
+    
+    current_features = data[features].iloc[-1].copy()
+    future_predictions = []
+    
+    for _ in range(30):
+        # Predict next day
+        pred = model.predict(current_features.values.reshape(1, -1))[0]
+        future_predictions.append(pred)
+        
+        # Simple walk-forward logic: assume all other features remain constant or change slightly 
+        # For simplicity, we only update 'Close' to the new prediction
+        current_features['Close'] = pred
 
-    # Assuming the future data is not available, we will use the last available data for prediction
-    last_available_data = data[features].iloc[-1]
-
-    for feature in features:
-        future_data[feature] = last_available_data[feature]
-
-    future_predictions = model.predict(future_data)
-
-    # Save future predictions to a CSV file
-    future_data['Predicted Close'] = future_predictions
-    future_data.to_csv('data/future_predictions_lr.csv')
-
-    print("Future stock price predictions saved to 'future_predictions_using_lr.csv'")
+    future_df = pd.DataFrame({
+        'date': future_dates,
+        'Predicted Close LR': future_predictions
+    })
+    
+    # Save future predictions
+    os.makedirs('data', exist_ok=True)
+    future_df.to_csv('data/future_predictions_lr.csv', index=False)
+    
+    print("Future stock price predictions saved to 'data/future_predictions_lr.csv'")
