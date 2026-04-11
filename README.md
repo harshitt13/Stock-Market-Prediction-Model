@@ -11,20 +11,23 @@
 
 ## 🎯 Project Overview
 
-This project implements an advanced stock price prediction model utilizing a **Stacking Meta-Ensemble**. The system combines two sophisticated machine learning approaches:
+This project implements an advanced stock price prediction model utilizing a **Stacking Meta-Ensemble**. The system combines three sophisticated machine learning approaches:
 1. **Tree Ensemble (XGBoost + Random Forest)** 
 2. **Deep Bidirectional LSTM (PyTorch)**
+3. **Time-Series Transformer (PyTorch)**
 
-A Ridge Regression meta-learner evaluates and optimally weights the predictions of these two models to generate highly accurate future price predictions with **95% confidence intervals**.
+A non-linear XGBoost meta-learner evaluates and optimally weights the predictions of these three models to generate highly accurate future price predictions with **Volatility-Adjusted 95% confidence intervals**.
 
 Video Demonstration - https://youtu.be/z8sXhWrwU0o
 
 ## 💻 Features
 
-- **Automated Data Processing:** Retrieves data from Yahoo Finance (`yfinance`) and generates 27 engineered features including MACD, Bollinger Bands, ATR, OBV, and lagged components.
+- **Macro-Economic Engine:** Retrieves data from Yahoo Finance and enriches the target stock with global indicators: S&P 500 (`^GSPC`), Volatility Index (`^VIX`), and Treasury Yield (`^TNX`).
+- **Time-Series Transformer:** Deep neural architecture using `nn.TransformerEncoder` with custom Positional Encoding to capture long-term chaotic trends.
 - **Tree Ensemble:** Uses a `VotingRegressor` combining tuned XGBoost and Random Forest.
 - **Bidirectional LSTM:** Deep 3-layer architecture with Batch Normalization, Dropout, Huber Loss, and learning rate scheduling in PyTorch.
-- **Stacking Meta-Ensemble:** Ridge regression dynamically learns the optimal combination weights of the underlying sub-models.
+- **Bayesian Optimization (Optuna):** Optional CLI flag to dynamically run hundreds of mathematical trials to find the absolute perfect hyperparameter architecture for a specific stock.
+- **Non-Linear Stacking Meta-Ensemble:** An XGBoost meta-learner learns the optimal combination weights of the underlying sub-models, utilizing real-time VIX to protect against market panic.
 - **Comprehensive Evaluation:** Built-in module scoring RMSE, MAE, MAPE, R², and Directional Accuracy.
 - **Visualization Dashboard:** Automatically generates professional, dark-themed charts containing actual vs predicted data, residual histograms, future forecasts, and feature importance.
 - **CLI Interface:** Dynamic command-line inputs for custom tickers, date ranges, and forecast windows.
@@ -93,21 +96,22 @@ python src/main.py --ticker AAPL --start 2015-01-01 --days 30
 - `--ticker`: The stock symbol to predict (default: `AAPL`).
 - `--start`: Historical data start date in `YYYY-MM-DD` (default: `2010-01-01`).
 - `--days`: Number of future business days to project (default: `30`).
+- `--optimize`: Triggers Optuna to perform Bayesian hyperparameter searching before training.
 
 ## ⚖️ Model Components
 
-1. **Tree Model (`tree_model.py`)**
-   - Combines XGBoost and Random Forest.
-   - Learns non-linear feature interactions and isolates the most important technical indicators.
-   - Outputs feature importance charts.
+1. **Time-Series Transformer (`transformer_model.py`)**
+   - The true standard of 2024 AI capabilities. Uses Multi-Head Attention to look directly at complex, long-term chart trends without fading memory.
 
 2. **Bidirectional LSTM (`lstm_model.py`)**
    - Deep neural network capturing complex temporal dependencies over a 90-day lookback window.
-   - Robust to outliers using Huber Loss.
 
-3. **Hybrid Meta-Ensemble (`main.py`)**
-   - Uses Ridge Regression on the sub-models' validation outputs.
-   - Replaces naive 50/50 averaging with mathematically optimal weighting.
+3. **Tree Model (`tree_model.py`)**
+   - Combines XGBoost and Random Forest. Learns non-linear feature interactions and isolates the most important technical indicators.
+
+4. **Hybrid Meta-Ensemble (`main.py`)**
+   - Uses an XGBoost Regressor on the sub-models' validation outputs.
+   - Fed with the Volatility Index (VIX), it learns to inherently shift its trust between the Deep Neural Networks and the Tree Ensemble depending on current market panic.
 
 ## 📏 Performance Metrics
 
@@ -142,7 +146,7 @@ python -m pytest tests/
 
 ## ⚠️ Limitations
 
-- Stock predictions are inherently probabilistic. This model uses only technical indicators, which omits fundamental (P/E, earnings) and sentiment (news, macroeconomics) data.
+- Stock predictions are inherently probabilistic. This model utilizes advanced technicals and macroeconomic contexts, but omits fundamental balance sheet analysis (P/E, Debt/Equity) and NLP sentiment (news headlines).
 - Model performance depends heavily on structural market regimes.
 - Past performance does not guarantee future results. **Do not use for real financial trading.**
 
