@@ -6,3 +6,5 @@ yfinance
 joblib
 torch
 xgboost
+optuna
+pytest

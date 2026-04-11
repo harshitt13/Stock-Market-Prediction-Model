@@ -50,6 +50,31 @@ def fetch_stock_data(ticker_symbol, start_date, end_date=None):
             raise ValueError(f"No data found for {ticker_symbol} in the given date range.")
 
         df = df.reset_index()
+        if hasattr(df['Date'].dt, 'tz') and df['Date'].dt.tz is not None:
+            df['Date'] = df['Date'].dt.tz_localize(None)
+        df['Date'] = df['Date'].dt.normalize()
+
+        # ── Fetch Macroeconomic Indicators ───────────────────────────────
+        macro_symbols = {'^GSPC': 'SP500', '^VIX': 'VIX', '^TNX': 'TNX_Yield'}
+        print("Fetching macroeconomic indicators...")
+        
+        # We will merge macros on Date
+        df.set_index('Date', inplace=True)
+        
+        for sym, name in macro_symbols.items():
+            try:
+                m_df = yf.Ticker(sym).history(start=start_date, end=end_date)[['Close']]
+                if not m_df.empty:
+                    m_df.rename(columns={'Close': name}, inplace=True)
+                    if m_df.index.tz is not None:
+                        m_df.index = m_df.index.tz_localize(None)
+                    m_df.index = m_df.index.normalize()
+                    df = df.join(m_df, how='left')
+                    df[name] = df[name].ffill().bfill()
+            except Exception as e:
+                print(f"Warning: Failed to fetch macro {sym}: {e}")
+                
+        df.reset_index(inplace=True)
 
         # Drop unnecessary columns
         df = df.drop(columns=[col for col in ['Dividends', 'Stock Splits'] if col in df.columns])
@@ -108,6 +133,14 @@ def fetch_stock_data(ticker_symbol, start_date, end_date=None):
         # Price change ratios
         df['Return_1d'] = df['Close'].pct_change(1)
         df['Return_5d'] = df['Close'].pct_change(5)
+
+        # ── Macro Features (Correlations) ────────────────────────────────
+        if 'SP500' in df.columns:
+            # 20-day rolling correlation with S&P 500
+            df['Corr_SP500_20'] = df['Close'].rolling(window=20).corr(df['SP500'])
+            df['SP500_Return_1d'] = df['SP500'].pct_change(1)
+        if 'VIX' in df.columns:
+            df['VIX_Change'] = df['VIX'].diff()
 
         # ── Calendar Features ────────────────────────────────────────────
 
