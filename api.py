@@ -79,7 +79,9 @@ def require_api_key(
             detail="STOCK_API_KEY is not configured.",
         )
 
-    if credentials.credentials != API_KEY:
+import secrets
+
+    if not secrets.compare_digest(credentials.credentials, API_KEY):
         raise HTTPException(
             status_code=401,
             detail="Invalid API key.",
