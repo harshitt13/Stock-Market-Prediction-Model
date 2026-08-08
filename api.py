@@ -1,5 +1,6 @@
 import json
 import os
+import secrets
 import sys
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -79,14 +80,11 @@ def require_api_key(
             detail="STOCK_API_KEY is not configured.",
         )
 
-import secrets
-
     if not secrets.compare_digest(credentials.credentials, API_KEY):
         raise HTTPException(
             status_code=401,
             detail="Invalid API key.",
         )
-
 # ---------------------------------------------------------
 # Request model
 # ---------------------------------------------------------
@@ -107,13 +105,13 @@ def cache_path(ticker: str, days: int) -> Path:
 
     if not safe_ticker:
         raise ValueError("Ticker is required.")
-
-    safe_ticker = "".join(
-        char for char in safe_ticker
-        if char.isalnum() or char in ("_", "-")
-    )
-
     if not safe_ticker:
+        raise ValueError("Ticker is required.")
+
+    if not all(
+    char.isalnum() or char in ("_", "-")
+    for char in safe_ticker
+    ):
         raise ValueError("Invalid ticker.")
 
     return CACHE_DIR / f"{safe_ticker}_{days}.json"
