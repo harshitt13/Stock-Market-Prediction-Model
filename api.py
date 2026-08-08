@@ -70,6 +70,21 @@ CACHE_DIR.mkdir(parents=True, exist_ok=True)
 API_KEY = os.getenv("STOCK_API_KEY")
 security = HTTPBearer()
 
+def require_api_key(
+    credentials: HTTPAuthorizationCredentials,
+) -> None:
+    if API_KEY is None:
+        raise HTTPException(
+            status_code=500,
+            detail="STOCK_API_KEY is not configured.",
+        )
+
+    if credentials.credentials != API_KEY:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid API key.",
+        )
+
 # ---------------------------------------------------------
 # Request model
 # ---------------------------------------------------------
@@ -85,11 +100,21 @@ class RetrainRequest(BaseModel):
 def normalize_ticker(ticker: str) -> str:
     return ticker.strip().upper()
 
-
 def cache_path(ticker: str, days: int) -> Path:
-    safe_ticker = normalize_ticker(ticker).replace("/", "_")
-    return CACHE_DIR / f"{safe_ticker}_{days}.json"
+    safe_ticker = normalize_ticker(ticker)
 
+    if not safe_ticker:
+        raise ValueError("Ticker is required.")
+
+    safe_ticker = "".join(
+        char for char in safe_ticker
+        if char.isalnum() or char in ("_", "-")
+    )
+
+    if not safe_ticker:
+        raise ValueError("Invalid ticker.")
+
+    return CACHE_DIR / f"{safe_ticker}_{days}.json"
 
 def save_cache(ticker: str, days: int, result: Dict[str, Any]) -> None:
     path = cache_path(ticker, days)
@@ -326,17 +351,31 @@ def execute_pipeline_job(
             jobs[job_id]["progress"] = "failed"
             jobs[job_id]["error"] = str(exc)
 
-
 def create_pipeline_job(
     ticker: str,
     days: int,
 ) -> str:
 
-    job_id = str(uuid.uuid4())
-
-    started_at = datetime.now(timezone.utc).isoformat()
-
     with jobs_lock:
+        active_job = next(
+            (
+                job
+                for job in jobs.values()
+                if job["status"] in ("queued", "running")
+            ),
+            None,
+        )
+
+        if active_job is not None:
+            raise HTTPException(
+                status_code=409,
+                detail="A pipeline job is already running.",
+            )
+
+        job_id = str(uuid.uuid4())
+
+        started_at = datetime.now(timezone.utc).isoformat()
+
         jobs[job_id] = {
             "job_id": job_id,
             "ticker": ticker,
@@ -365,14 +404,15 @@ def home():
         "message": "Stock Prediction API is running"
     }
 
-
 @app.get("/predict")
 def predict(
     ticker: str,
     days: int = 30,
     force_refresh: bool = False,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
+        HTTPBearer(auto_error=False)
+    ),
 ):
-
     ticker = normalize_ticker(ticker)
 
     if not ticker:
@@ -388,7 +428,6 @@ def predict(
         )
 
     if not force_refresh:
-
         cached_result = load_cache(
             ticker,
             days,
@@ -398,6 +437,14 @@ def predict(
             cached_result
         ):
             return cached_result
+
+    if credentials is None:
+        raise HTTPException(
+            status_code=401,
+            detail="API key is required to generate a new prediction.",
+        )
+
+    require_api_key(credentials)
 
     job_id = create_pipeline_job(
         ticker,
@@ -409,25 +456,12 @@ def predict(
         "job_id": job_id,
         "ticker": ticker,
     }
-
-
 @app.post("/retrain")
 def retrain(
     request: RetrainRequest,
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
-
-    if API_KEY is None:
-        raise HTTPException(
-            status_code=500,
-            detail="STOCK_API_KEY is not configured.",
-        )
-
-    if credentials.credentials != API_KEY:
-        raise HTTPException(
-        status_code=401,
-        detail="Invalid API key.",
-    )
+    require_api_key(credentials)
 
     ticker = normalize_ticker(
         request.ticker
@@ -451,7 +485,6 @@ def retrain(
         "started_at": jobs[job_id]["started_at"],
     }
 
-
 @app.get("/status/{job_id}")
 def get_status(job_id: str):
 
@@ -465,4 +498,4 @@ def get_status(job_id: str):
                 detail="Job not found.",
             )
 
-        return job
+        return dict(job)
