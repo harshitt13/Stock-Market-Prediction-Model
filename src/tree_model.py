@@ -178,27 +178,36 @@ def train_tree_model(
     )
     print(f"Model saved to '{model_path}'")
 
+    from fetch_data import engineer_features
+
     # --- Future predictions (using last-fold model) ---
     last_date = pd.to_datetime(data["Date"]).max()
     future_dates = pd.date_range(
         start=last_date + pd.Timedelta(days=1), periods=future_days, freq="B"
     )
 
-    current_features = data[features].iloc[-1].values.copy().astype(np.float64)
     future_predictions = []
+    
+    # We only need the last ~60 rows to compute rolling features up to 50 days
+    history_df = data.copy().iloc[-100:].reset_index(drop=True)
 
-    for _ in range(future_days):
-        feat_sc = last_scaler.transform(current_features.reshape(1, -1))
+    for i in range(future_days):
+        # The last row has the current engineered features
+        current_features = history_df.iloc[-1][features].values.astype(np.float64).reshape(1, -1)
+        feat_sc = last_scaler.transform(current_features)
         pred = last_model.predict(feat_sc)[0]
         future_predictions.append(pred)
-        close_idx = features.index("Close")
-        current_features[close_idx] = pred
-        if "Return_1d" in features:
-            ret_idx = features.index("Return_1d")
-            old_close = current_features[close_idx]
-            current_features[ret_idx] = (
-                (pred - old_close) / old_close if old_close != 0 else 0
-            )
+        
+        # Build next day's base row
+        new_row = history_df.iloc[-1].copy()
+        new_row["Date"] = future_dates[i]
+        new_row["Close"] = pred
+        new_row["High"] = pred  # Proxy for future high
+        new_row["Low"] = pred   # Proxy for future low
+        
+        # Append and re-engineer features
+        history_df.loc[len(history_df)] = new_row
+        history_df = engineer_features(history_df)
 
     future_predictions = np.array(future_predictions)
 

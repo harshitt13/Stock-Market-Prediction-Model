@@ -38,7 +38,7 @@ class TestFetchStockData(unittest.TestCase):
             'Volume': [1000000, 1200000],
         }
         sample_df = pd.DataFrame(data)
-        save_to_csv(sample_df, 'TEST')
+        save_to_csv(sample_df)
 
         self.assertTrue(os.path.exists(self.filepath), "CSV file should be saved.")
         saved_df = pd.read_csv(self.filepath)

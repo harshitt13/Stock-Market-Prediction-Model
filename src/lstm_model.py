@@ -317,15 +317,13 @@ def train_lstm_model(
     )
     print(f"Model saved to '{model_path}'")
 
+    from fetch_data import engineer_features
+
     # --- Future predictions ---
     last_date = pd.to_datetime(data["Date"]).max()
     future_dates = pd.date_range(
         start=last_date + pd.Timedelta(days=1), periods=future_days, freq="B"
     )
-
-    scaled_data = last_scaler.transform(df[features])
-    last_sequence = scaled_data[-time_step:].copy()
-    current_sequence = last_sequence.reshape(1, time_step, n_features)
 
     def inverse_close_single(arr):
         arr = np.asarray(arr, dtype=np.float64).flatten()
@@ -335,17 +333,34 @@ def train_lstm_model(
         return last_scaler.inverse_transform(padded)[:, 0]
 
     future_preds_scaled = []
+    
+    # Track the raw data to dynamically rebuild features
+    history_df = data.copy().iloc[-100:].reset_index(drop=True)
+
     last_model.eval()
-    for _ in range(future_days):
+    for i in range(future_days):
+        # We need the last `time_step` scaled features
+        # Recalculate scaled data for the current history window
+        scaled_history = last_scaler.transform(history_df[features])
+        current_sequence = scaled_history[-time_step:].reshape(1, time_step, n_features)
+        
         with torch.no_grad():
             seq_t = torch.tensor(current_sequence, dtype=torch.float32).to(DEVICE)
             pred_scaled = last_model(seq_t).cpu().numpy()[0]
         future_preds_scaled.append(pred_scaled)
-        next_day = current_sequence[0, -1, :].copy()
-        next_day[0] = pred_scaled
-        current_sequence = np.append(
-            current_sequence[:, 1:, :], [[next_day]], axis=1
-        ).astype(np.float32)
+        
+        pred_inv = inverse_close_single([pred_scaled])[0]
+        
+        # Build next day's base row in raw scale
+        new_row = history_df.iloc[-1].copy()
+        new_row["Date"] = future_dates[i]
+        new_row["Close"] = pred_inv
+        new_row["High"] = pred_inv
+        new_row["Low"] = pred_inv
+        
+        # Append and re-engineer features
+        history_df.loc[len(history_df)] = new_row
+        history_df = engineer_features(history_df)
 
     future_preds_inv = inverse_close_single(np.array(future_preds_scaled))
 

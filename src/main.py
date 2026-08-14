@@ -15,6 +15,8 @@ import sys
 import argparse
 import numpy as np
 import pandas as pd
+import matplotlib
+matplotlib.use("Agg")
 from xgboost import XGBRegressor
 from typing import Dict, Any, Optional, List, Tuple
 
@@ -214,6 +216,76 @@ def train_meta_ensemble_oof(
     return meta_model, meta_pred_all, residual_std
 
 
+from xgboost import XGBClassifier
+from sklearn.metrics import accuracy_score
+
+def train_classification_meta_ensemble_oof(
+    y_true: np.ndarray,
+    tree_pred: np.ndarray,
+    lstm_pred: np.ndarray,
+    tf_pred: np.ndarray,
+    stock_data: pd.DataFrame,
+    test_dates: np.ndarray,
+) -> Tuple[XGBClassifier, np.ndarray]:
+    """
+    Train an XGBoost meta-learner to predict the DIRECTION (UP=1, DOWN=0)
+    rather than the magnitude.
+    """
+    n = len(y_true)
+    meta_train_end = int(n * 0.8)
+
+    # Get Previous Close to determine directions
+    df_prices = stock_data[["Date", "Close"]].copy()
+    df_prices["Date"] = _strip_tz(df_prices["Date"])
+    df_prices["Prev_Close"] = df_prices["Close"].shift(1)
+    
+    df_meta = pd.DataFrame({"Date": _strip_tz(test_dates)})
+    df_meta = df_meta.merge(df_prices, on="Date", how="left")
+    
+    # Forward fill just in case, though they should match exactly
+    df_meta["Prev_Close"] = df_meta["Prev_Close"].ffill().bfill()
+    prev_close = df_meta["Prev_Close"].values
+
+    # Base models' predicted directions
+    tree_dir = (tree_pred > prev_close).astype(int)
+    lstm_dir = (lstm_pred > prev_close).astype(int)
+    tf_dir = (tf_pred > prev_close).astype(int)
+    
+    # True direction
+    y_class = (y_true > prev_close).astype(int)
+
+    X_meta = np.column_stack([tree_dir, lstm_dir, tf_dir])
+
+    # Add VIX as contextual feature
+    try:
+        if "VIX" in stock_data.columns:
+            df_vix = stock_data[["Date", "VIX"]].copy()
+            df_vix["Date"] = _strip_tz(df_vix["Date"])
+            df_meta2 = pd.DataFrame({"Date": _strip_tz(test_dates)})
+            df_meta2 = df_meta2.merge(df_vix, on="Date", how="left")
+            vix_vals = df_meta2["VIX"].fillna(df_meta2["VIX"].median()).values
+            X_meta = np.column_stack([X_meta, vix_vals])
+    except Exception:
+        pass
+
+    X_meta_train = X_meta[:meta_train_end]
+    y_meta_train = y_class[:meta_train_end]
+    X_meta_eval = X_meta[meta_train_end:]
+    y_meta_eval = y_class[meta_train_end:]
+
+    clf_model = XGBClassifier(
+        n_estimators=100, max_depth=3, learning_rate=0.05, random_state=42, eval_metric="logloss"
+    )
+    clf_model.fit(X_meta_train, y_meta_train)
+
+    clf_pred_all = clf_model.predict(X_meta)
+    
+    eval_acc = accuracy_score(y_meta_eval, clf_pred_all[meta_train_end:])
+    print(f"  Classification Meta-Learner OOF Accuracy: {eval_acc*100:.2f}%")
+
+    return clf_model, clf_pred_all
+
+
 def run_baselines(
     data: pd.DataFrame, folds: List[Tuple[np.ndarray, np.ndarray]]
 ) -> Dict[str, Dict[str, Any]]:
@@ -330,19 +402,52 @@ def run_pipeline(
     conf_upper = None
     meta_model = None
     calibration_report = None
+    clf_model = None
 
     if y_true is not None and len(y_true) > 10:
+        # 1. Regression Meta-Learner (Magnitude & CI)
         meta_model, hybrid_test_pred, residual_std = train_meta_ensemble_oof(
             y_true, tree_p, lstm_p, tf_p, stock_data, dates
         )
 
         hybrid_metrics = compute_metrics(
-            y_true, hybrid_test_pred, model_name="Hybrid (XGBoost Meta)"
+            y_true, hybrid_test_pred, model_name="Hybrid Meta (Regressor)"
         )
         print_metrics(hybrid_metrics)
         all_metrics.append(hybrid_metrics)
 
-        # Future predictions with CI
+        # 2. Classification Meta-Learner (Direction)
+        clf_model, clf_pred_all = train_classification_meta_ensemble_oof(
+            y_true, tree_p, lstm_p, tf_p, stock_data, dates
+        )
+        
+        # Calculate Classification Metrics manually since compute_metrics expects prices
+        # We align with evaluate.py logic:
+        df_prices = stock_data[["Date", "Close"]].copy()
+        df_prices["Date"] = _strip_tz(df_prices["Date"])
+        df_prices["Prev_Close"] = df_prices["Close"].shift(1)
+        df_meta = pd.DataFrame({"Date": _strip_tz(dates)})
+        df_meta = df_meta.merge(df_prices, on="Date", how="left")
+        df_meta["Prev_Close"] = df_meta["Prev_Close"].ffill().bfill()
+        
+        y_class_true = (y_true > df_meta["Prev_Close"].values).astype(int)
+        
+        from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+        clf_metrics = {
+            "Model": "Hybrid Meta (Classifier)",
+            "Directional Accuracy (%)": accuracy_score(y_class_true, clf_pred_all) * 100,
+            "F1 Score": f1_score(y_class_true, clf_pred_all, average="macro"),
+            "Precision": precision_score(y_class_true, clf_pred_all, average="macro", zero_division=0),
+            "Recall": recall_score(y_class_true, clf_pred_all, average="macro", zero_division=0),
+            "RMSE": np.nan,
+            "MAE": np.nan,
+            "MAPE (%)": np.nan,
+            "R2": np.nan,
+            "Max Error": np.nan,
+        }
+        all_metrics.append(clf_metrics)
+
+        # Future predictions with CI (using Regression model)
         hybrid_future, conf_lower, conf_upper, _ = generate_confidence_intervals(
             meta_model,
             base_results["tree"]["future_predictions"],
@@ -446,6 +551,9 @@ def run_pipeline(
     # Final summary
     print("\n" + "=" * 70)
     print("  [OK] PIPELINE COMPLETE (Walk-Forward, Classification-Primary)")
+    import glob
+    img_count = len(glob.glob("images/*.png"))
+    print(f"  [OK] Generated {img_count} visualization PNGs in 'images/' directory.")
     print("=" * 70)
     if hybrid_future is not None:
         print(f"\n  [FORECAST] {ticker} - Next {future_days} Business Day Predictions (Hybrid):")

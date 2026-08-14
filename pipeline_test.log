@@ -1,0 +1,130 @@
+======================================================================
+  >> HYBRID STOCK PREDICTOR - MSFT
+  Historical data from 2023-01-01 | Predicting 30 days ahead
+  Optuna Tuning: DISABLED
+  Validation: Walk-Forward (min_train=200, test=20, step=20)
+======================================================================
+
+[1/7] Fetching & engineering features + Macro context...
+Fetching data for MSFT from 2023-01-01 to 2026-08-14...
+Fetching macroeconomic indicators...
+Stock data saved to data\stock_data.csv
+Data fetched successfully: 857 rows, 34 columns.
+
+============================================================
+  Walk-Forward Validation - 32 Folds
+============================================================
+  Fold 1: Train [2023-03-15 -> 2023-12-28] (200 days)  |  Test [2023-12-29 -> 2024-01-29] (20 days)
+  Fold 2: Train [2023-03-15 -> 2024-01-29] (220 days)  |  Test [2024-01-30 -> 2024-02-27] (20 days)
+  Fold 3: Train [2023-03-15 -> 2024-02-27] (240 days)  |  Test [2024-02-28 -> 2024-03-26] (20 days)
+  Fold 4: Train [2023-03-15 -> 2024-03-26] (260 days)  |  Test [2024-03-27 -> 2024-04-24] (20 days)
+  Fold 5: Train [2023-03-15 -> 2024-04-24] (280 days)  |  Test [2024-04-25 -> 2024-05-22] (20 days)
+  Fold 6: Train [2023-03-15 -> 2024-05-22] (300 days)  |  Test [2024-05-23 -> 2024-06-21] (20 days)
+  Fold 7: Train [2023-03-15 -> 2024-06-21] (320 days)  |  Test [2024-06-24 -> 2024-07-22] (20 days)
+  Fold 8: Train [2023-03-15 -> 2024-07-22] (340 days)  |  Test [2024-07-23 -> 2024-08-19] (20 days)
+  Fold 9: Train [2023-03-15 -> 2024-08-19] (360 days)  |  Test [2024-08-20 -> 2024-09-17] (20 days)
+  Fold 10: Train [2023-03-15 -> 2024-09-17] (380 days)  |  Test [2024-09-18 -> 2024-10-15] (20 days)
+  Fold 11: Train [2023-03-15 -> 2024-10-15] (400 days)  |  Test [2024-10-16 -> 2024-11-12] (20 days)
+  Fold 12: Train [2023-03-15 -> 2024-11-12] (420 days)  |  Test [2024-11-13 -> 2024-12-11] (20 days)
+  Fold 13: Train [2023-03-15 -> 2024-12-11] (440 days)  |  Test [2024-12-12 -> 2025-01-13] (20 days)
+  Fold 14: Train [2023-03-15 -> 2025-01-13] (460 days)  |  Test [2025-01-14 -> 2025-02-11] (20 days)
+  Fold 15: Train [2023-03-15 -> 2025-02-11] (480 days)  |  Test [2025-02-12 -> 2025-03-12] (20 days)
+  Fold 16: Train [2023-03-15 -> 2025-03-12] (500 days)  |  Test [2025-03-13 -> 2025-04-09] (20 days)
+  Fold 17: Train [2023-03-15 -> 2025-04-09] (520 days)  |  Test [2025-04-10 -> 2025-05-08] (20 days)
+  Fold 18: Train [2023-03-15 -> 2025-05-08] (540 days)  |  Test [2025-05-09 -> 2025-06-06] (20 days)
+  Fold 19: Train [2023-03-15 -> 2025-06-06] (560 days)  |  Test [2025-06-09 -> 2025-07-08] (20 days)
+  Fold 20: Train [2023-03-15 -> 2025-07-08] (580 days)  |  Test [2025-07-09 -> 2025-08-05] (20 days)
+  Fold 21: Train [2023-03-15 -> 2025-08-05] (600 days)  |  Test [2025-08-06 -> 2025-09-03] (20 days)
+  Fold 22: Train [2023-03-15 -> 2025-09-03] (620 days)  |  Test [2025-09-04 -> 2025-10-01] (20 days)
+  Fold 23: Train [2023-03-15 -> 2025-10-01] (640 days)  |  Test [2025-10-02 -> 2025-10-29] (20 days)
+  Fold 24: Train [2023-03-15 -> 2025-10-29] (660 days)  |  Test [2025-10-30 -> 2025-11-26] (20 days)
+  Fold 25: Train [2023-03-15 -> 2025-11-26] (680 days)  |  Test [2025-11-28 -> 2025-12-26] (20 days)
+  Fold 26: Train [2023-03-15 -> 2025-12-26] (700 days)  |  Test [2025-12-29 -> 2026-01-27] (20 days)
+  Fold 27: Train [2023-03-15 -> 2026-01-27] (720 days)  |  Test [2026-01-28 -> 2026-02-25] (20 days)
+  Fold 28: Train [2023-03-15 -> 2026-02-25] (740 days)  |  Test [2026-02-26 -> 2026-03-25] (20 days)
+  Fold 29: Train [2023-03-15 -> 2026-03-25] (760 days)  |  Test [2026-03-26 -> 2026-04-23] (20 days)
+  Fold 30: Train [2023-03-15 -> 2026-04-23] (780 days)  |  Test [2026-04-24 -> 2026-05-21] (20 days)
+  Fold 31: Train [2023-03-15 -> 2026-05-21] (800 days)  |  Test [2026-05-22 -> 2026-06-22] (20 days)
+  Fold 32: Train [2023-03-15 -> 2026-06-22] (820 days)  |  Test [2026-06-23 -> 2026-07-21] (20 days)
+============================================================
+
+
+[2/7] Training Tree Ensemble (walk-forward)...
+  Tree Fold 1/32 - train=200, test=20
+  Tree Fold 2/32 - train=220, test=20
+  Tree Fold 3/32 - train=240, test=20
+  Tree Fold 4/32 - train=260, test=20
+  Tree Fold 5/32 - train=280, test=20
+  Tree Fold 6/32 - train=300, test=20
+  Tree Fold 7/32 - train=320, test=20
+  Tree Fold 8/32 - train=340, test=20
+  Tree Fold 9/32 - train=360, test=20
+  Tree Fold 10/32 - train=380, test=20
+  Tree Fold 11/32 - train=400, test=20
+  Tree Fold 12/32 - train=420, test=20
+  Tree Fold 13/32 - train=440, test=20
+  Tree Fold 14/32 - train=460, test=20
+  Tree Fold 15/32 - train=480, test=20
+  Tree Fold 16/32 - train=500, test=20
+  Tree Fold 17/32 - train=520, test=20
+  Tree Fold 18/32 - train=540, test=20
+  Tree Fold 19/32 - train=560, test=20
+  Tree Fold 20/32 - train=580, test=20
+  Tree Fold 21/32 - train=600, test=20
+  Tree Fold 22/32 - train=620, test=20
+  Tree Fold 23/32 - train=640, test=20
+  Tree Fold 24/32 - train=660, test=20
+  Tree Fold 25/32 - train=680, test=20
+  Tree Fold 26/32 - train=700, test=20
+  Tree Fold 27/32 - train=720, test=20
+  Tree Fold 28/32 - train=740, test=20
+  Tree Fold 29/32 - train=760, test=20
+  Tree Fold 30/32 - train=780, test=20
+  Tree Fold 31/32 - train=800, test=20
+  Tree Fold 32/32 - train=820, test=20
+
+============================================================
+  [EVAL] Tree Ensemble ù Evaluation Results
+============================================================
+
+  -------------------- PRIMARY (Classification) --------------------
+  Directional Accuracy : 49.41%
+  F1 Score             : 0.4928
+  Precision            : 0.4981
+  Recall               : 0.4982
+
+  Confusion Matrix (Actual \ Predicted):
+                   Pred DOWN   Pred UP
+    Actual DOWN  |       163 |     120
+    Actual UP    |       182 |     132
+
+  -------------------- SECONDARY (Regression) --------------------
+  RMSE                 : 11.6621
+  MAE                  : 8.4328
+  MAPE                 : 1.95%
+  R-Squared            : 0.9282
+Model saved to 'models/tree_ensemble_model.pkl'
+Future predictions saved to 'data/future_predictions_tree.csv'
+
+[3/7] Training Bidirectional LSTM (walk-forward)...
+  LSTM Fold 1/32 - train=200, test=20
+    Epoch 1/100 - Train: 0.182638, Val: 0.365565
+    Epoch 20/100 - Train: 0.008897, Val: 0.039656
+    Epoch 40/100 - Train: 0.006118, Val: 0.017787
+    Early stopping at epoch 50
+  LSTM Fold 2/32 - train=220, test=20
+    Epoch 1/100 - Train: 0.240658, Val: 0.543604
+    Epoch 20/100 - Train: 0.008862, Val: 0.093801
+    Epoch 40/100 - Train: 0.005882, Val: 0.065256
+    Early stopping at epoch 44
+  LSTM Fold 3/32 - train=240, test=20
+    Epoch 1/100 - Train: 0.080972, Val: 0.294572
+    Epoch 20/100 - Train: 0.009021, Val: 0.025557
+    Epoch 40/100 - Train: 0.003758, Val: 0.027990
+    Early stopping at epoch 48
+  LSTM Fold 4/32 - train=260, test=20
+    Epoch 1/100 - Train: 0.113113, Val: 0.281052
+    Epoch 20/100 - Train: 0.005321, Val: 0.020391
+    Early stopping at epoch 38
+  LSTM Fold 5/32 - train=280, test=20
+    Epoch 1/100 - Train: 0.230322, Val: 0.576212

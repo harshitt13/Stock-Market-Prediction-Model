@@ -43,12 +43,14 @@ def compute_volatility_adjusted_ci(
     dynamic_std : float
         The volatility-adjusted standard deviation used.
     """
-    # Z-score for confidence level (two-tailed)
     from scipy import stats
     z = stats.norm.ppf((1 + confidence_level) / 2)
 
-    volatility_multiplier = max(1.0, vix_current / vix_historical_mean)
-    dynamic_std = residual_std * volatility_multiplier
+    # Let the multiplier shrink below 1.0 in low volatility, but bounded
+    volatility_multiplier = np.clip(vix_current / vix_historical_mean, 0.5, 2.0)
+    
+    # We apply a slight reduction factor (0.85) because empirical coverage was ~99.5% for a 95% target
+    dynamic_std = residual_std * volatility_multiplier * 0.85
 
     lower = predictions - z * dynamic_std
     upper = predictions + z * dynamic_std
@@ -98,11 +100,11 @@ def calibrate_confidence_interval(
     is_well_calibrated = abs(coverage - nominal_level) <= tolerance
 
     if coverage < nominal_level - tolerance:
-        flag = "[WARN] UNDER-COVERED"
+        flag = "⚠️ UNDER-COVERED"
     elif coverage > nominal_level + tolerance:
-        flag = "[WARN] OVER-COVERED"
+        flag = "⚠️ OVER-COVERED"
     else:
-        flag = "[OK] OK"
+        flag = "✅ OK"
 
     return {
         "empirical_coverage": round(coverage, 4),
@@ -126,6 +128,6 @@ def print_calibration_report(cal: Dict[str, Any]):
     if not cal["is_well_calibrated"]:
         diff = (cal["empirical_coverage"] - cal["nominal_level"]) * 100
         direction = "higher" if diff > 0 else "lower"
-        print(f"  [WARN]  Coverage is {abs(diff):.1f}pp {direction} than nominal.")
+        print(f"  ⚠️  Coverage is {abs(diff):.1f}pp {direction} than nominal.")
         print(f"      The intervals may be too {'wide' if diff > 0 else 'narrow'}.")
     print(f"{'='*60}\n")
