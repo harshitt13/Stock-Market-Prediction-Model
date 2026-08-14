@@ -45,9 +45,14 @@ from visualize import (
 
 def _strip_tz(dt_index):
     dt_index = pd.to_datetime(dt_index)
-    if hasattr(dt_index, "tz") and dt_index.tz is not None:
-        dt_index = dt_index.tz_localize(None)
-    return dt_index.normalize()
+    if hasattr(dt_index, "dt"):
+        if getattr(dt_index.dt, "tz", None) is not None:
+            dt_index = dt_index.dt.tz_localize(None)
+        return dt_index.dt.normalize()
+    else:
+        if getattr(dt_index, "tz", None) is not None:
+            dt_index = dt_index.tz_localize(None)
+        return dt_index.normalize()
 
 
 # ---------------------------------------------------------------------------

@@ -74,60 +74,28 @@ Data fetched successfully: 2116 rows, 34 columns.
 ============================================================
 
   -------------------- PRIMARY (Classification) --------------------
-  Directional Accuracy : 49.09%
-  F1 Score             : 0.4907
-  Precision            : 0.4948
-  Recall               : 0.4949
+  Directional Accuracy : 49.22%
+  F1 Score             : 0.4919
+  Precision            : 0.4966
+  Recall               : 0.4966
 
   Confusion Matrix (Actual \ Predicted):
                    Pred DOWN   Pred UP
-    Actual DOWN  |       379 |     309
-    Actual UP    |       445 |     348
+    Actual DOWN  |       384 |     304
+    Actual UP    |       448 |     345
 
   -------------------- SECONDARY (Regression) --------------------
-  RMSE                 : 10.2366
-  MAE                  : 6.6035
-  MAPE                 : 3.86%
-  R-Squared            : 0.9634
+  RMSE                 : 10.1718
+  MAE                  : 6.5704
+  MAPE                 : 3.85%
+  R-Squared            : 0.9638
 Model saved to 'models/tree_ensemble_model.pkl'
 Future predictions saved to 'data/future_predictions_tree.csv'
 
 [3/7] Training Bidirectional LSTM (walk-forward)...
   LSTM Fold 1/25 - train=504, test=63
-    Epoch 1/100 - Train: 0.020522, Val: 0.272633
-    Epoch 20/100 - Train: 0.001627, Val: 0.070388
-    Early stopping at epoch 36
+    Epoch 1/100 - Train: 0.058457, Val: 0.521199
+    Epoch 20/100 - Train: 0.003884, Val: 0.080502
+    Early stopping at epoch 39
   LSTM Fold 2/25 - train=567, test=63
-    Epoch 1/100 - Train: 0.024198, Val: 0.214249
-    Epoch 20/100 - Train: 0.002425, Val: 0.027106
-    Early stopping at epoch 38
-  LSTM Fold 3/25 - train=630, test=63
-    Epoch 1/100 - Train: 0.027584, Val: 0.342562
-    Epoch 20/100 - Train: 0.001978, Val: 0.097366
-    Early stopping at epoch 27
-  LSTM Fold 4/25 - train=693, test=63
-    Epoch 1/100 - Train: 0.032524, Val: 0.363024
-    Epoch 20/100 - Train: 0.003594, Val: 0.067483
-    Early stopping at epoch 27
-  LSTM Fold 5/25 - train=756, test=63
-    Epoch 1/100 - Train: 0.043156, Val: 0.288803
-    Epoch 20/100 - Train: 0.002132, Val: 0.103139
-    Early stopping at epoch 25
-  LSTM Fold 6/25 - train=819, test=63
-    Epoch 1/100 - Train: 0.036824, Val: 0.296471
-    Epoch 20/100 - Train: 0.004343, Val: 0.053141
-    Early stopping at epoch 31
-  LSTM Fold 7/25 - train=882, test=63
-    Epoch 1/100 - Train: 0.041668, Val: 0.247268
-    Epoch 20/100 - Train: 0.003728, Val: 0.080183
-    Early stopping at epoch 30
-  LSTM Fold 8/25 - train=945, test=63
-    Epoch 1/100 - Train: 0.021745, Val: 0.276822
-    Epoch 20/100 - Train: 0.005089, Val: 0.071937
-    Early stopping at epoch 32
-  LSTM Fold 9/25 - train=1008, test=63
-    Epoch 1/100 - Train: 0.022519, Val: 0.389323
-    Epoch 20/100 - Train: 0.002668, Val: 0.130362
-    Early stopping at epoch 37
-  LSTM Fold 10/25 - train=1071, test=63
-    Epoch 1/100 - Train: 0.027925, Val: 0.299264
+    Epoch 1/100 - Train: 0.028699, Val: 0.207152

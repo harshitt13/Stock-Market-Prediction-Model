@@ -100,11 +100,11 @@ def calibrate_confidence_interval(
     is_well_calibrated = abs(coverage - nominal_level) <= tolerance
 
     if coverage < nominal_level - tolerance:
-        flag = "⚠️ UNDER-COVERED"
+        flag = "[!] UNDER-COVERED"
     elif coverage > nominal_level + tolerance:
-        flag = "⚠️ OVER-COVERED"
+        flag = "[!] OVER-COVERED"
     else:
-        flag = "✅ OK"
+        flag = "[OK] WELL-CALIBRATED"
 
     return {
         "empirical_coverage": round(coverage, 4),

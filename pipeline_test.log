@@ -88,43 +88,505 @@ Data fetched successfully: 857 rows, 34 columns.
 ============================================================
 
   -------------------- PRIMARY (Classification) --------------------
-  Directional Accuracy : 49.41%
-  F1 Score             : 0.4928
-  Precision            : 0.4981
-  Recall               : 0.4982
+  Directional Accuracy : 49.75%
+  F1 Score             : 0.4963
+  Precision            : 0.5014
+  Recall               : 0.5014
 
   Confusion Matrix (Actual \ Predicted):
                    Pred DOWN   Pred UP
     Actual DOWN  |       163 |     120
-    Actual UP    |       182 |     132
+    Actual UP    |       180 |     134
 
   -------------------- SECONDARY (Regression) --------------------
-  RMSE                 : 11.6621
-  MAE                  : 8.4328
-  MAPE                 : 1.95%
-  R-Squared            : 0.9282
+  RMSE                 : 11.6197
+  MAE                  : 8.4121
+  MAPE                 : 1.94%
+  R-Squared            : 0.9287
 Model saved to 'models/tree_ensemble_model.pkl'
 Future predictions saved to 'data/future_predictions_tree.csv'
 
 [3/7] Training Bidirectional LSTM (walk-forward)...
   LSTM Fold 1/32 - train=200, test=20
-    Epoch 1/100 - Train: 0.182638, Val: 0.365565
-    Epoch 20/100 - Train: 0.008897, Val: 0.039656
-    Epoch 40/100 - Train: 0.006118, Val: 0.017787
-    Early stopping at epoch 50
+    Epoch 1/100 - Train: 0.218079, Val: 0.356478
+    Epoch 20/100 - Train: 0.007354, Val: 0.030367
+    Epoch 40/100 - Train: 0.006359, Val: 0.008629
+    Early stopping at epoch 47
   LSTM Fold 2/32 - train=220, test=20
-    Epoch 1/100 - Train: 0.240658, Val: 0.543604
-    Epoch 20/100 - Train: 0.008862, Val: 0.093801
-    Epoch 40/100 - Train: 0.005882, Val: 0.065256
-    Early stopping at epoch 44
+    Epoch 1/100 - Train: 0.243447, Val: 0.491001
+    Epoch 20/100 - Train: 0.006208, Val: 0.036091
+    Epoch 40/100 - Train: 0.005045, Val: 0.033899
+    Early stopping at epoch 42
   LSTM Fold 3/32 - train=240, test=20
-    Epoch 1/100 - Train: 0.080972, Val: 0.294572
-    Epoch 20/100 - Train: 0.009021, Val: 0.025557
-    Epoch 40/100 - Train: 0.003758, Val: 0.027990
-    Early stopping at epoch 48
+    Epoch 1/100 - Train: 0.068085, Val: 0.308464
+    Epoch 20/100 - Train: 0.009128, Val: 0.012149
+    Early stopping at epoch 34
   LSTM Fold 4/32 - train=260, test=20
-    Epoch 1/100 - Train: 0.113113, Val: 0.281052
-    Epoch 20/100 - Train: 0.005321, Val: 0.020391
-    Early stopping at epoch 38
+    Epoch 1/100 - Train: 0.086279, Val: 0.311199
+    Epoch 20/100 - Train: 0.003894, Val: 0.024112
+    Early stopping at epoch 37
   LSTM Fold 5/32 - train=280, test=20
-    Epoch 1/100 - Train: 0.230322, Val: 0.576212
+    Epoch 1/100 - Train: 0.252621, Val: 0.548516
+    Epoch 20/100 - Train: 0.009611, Val: 0.031920
+    Early stopping at epoch 34
+  LSTM Fold 6/32 - train=300, test=20
+    Epoch 1/100 - Train: 0.262899, Val: 0.521691
+    Epoch 20/100 - Train: 0.009316, Val: 0.024586
+    Early stopping at epoch 36
+  LSTM Fold 7/32 - train=320, test=20
+    Epoch 1/100 - Train: 0.144937, Val: 0.285705
+    Epoch 20/100 - Train: 0.005041, Val: 0.028968
+    Early stopping at epoch 31
+  LSTM Fold 8/32 - train=340, test=20
+    Epoch 1/100 - Train: 0.082710, Val: 0.390636
+    Epoch 20/100 - Train: 0.004313, Val: 0.042177
+    Early stopping at epoch 39
+  LSTM Fold 9/32 - train=360, test=20
+    Epoch 1/100 - Train: 0.173395, Val: 0.358038
+    Epoch 20/100 - Train: 0.004327, Val: 0.011438
+    Early stopping at epoch 30
+  LSTM Fold 10/32 - train=380, test=20
+    Epoch 1/100 - Train: 0.111861, Val: 0.218218
+    Epoch 20/100 - Train: 0.006151, Val: 0.008691
+    Early stopping at epoch 26
+  LSTM Fold 11/32 - train=400, test=20
+    Epoch 1/100 - Train: 0.293148, Val: 0.421341
+    Epoch 20/100 - Train: 0.006814, Val: 0.010462
+    Early stopping at epoch 27
+  LSTM Fold 12/32 - train=420, test=20
+    Epoch 1/100 - Train: 0.055156, Val: 0.325148
+    Epoch 20/100 - Train: 0.006536, Val: 0.029471
+    Early stopping at epoch 33
+  LSTM Fold 13/32 - train=440, test=20
+    Epoch 1/100 - Train: 0.220949, Val: 0.433789
+    Epoch 20/100 - Train: 0.007249, Val: 0.015876
+    Early stopping at epoch 27
+  LSTM Fold 14/32 - train=460, test=20
+    Epoch 1/100 - Train: 0.059409, Val: 0.274345
+    Epoch 20/100 - Train: 0.004524, Val: 0.019830
+    Early stopping at epoch 27
+  LSTM Fold 15/32 - train=480, test=20
+    Epoch 1/100 - Train: 0.106015, Val: 0.325200
+    Epoch 20/100 - Train: 0.005015, Val: 0.013636
+    Early stopping at epoch 29
+  LSTM Fold 16/32 - train=500, test=20
+    Epoch 1/100 - Train: 0.119920, Val: 0.235876
+    Epoch 20/100 - Train: 0.004749, Val: 0.004890
+    Early stopping at epoch 28
+  LSTM Fold 17/32 - train=520, test=20
+    Epoch 1/100 - Train: 0.128145, Val: 0.236668
+    Epoch 20/100 - Train: 0.006295, Val: 0.004493
+    Early stopping at epoch 28
+  LSTM Fold 18/32 - train=540, test=20
+    Epoch 1/100 - Train: 0.056405, Val: 0.222350
+    Epoch 20/100 - Train: 0.006057, Val: 0.007973
+    Early stopping at epoch 24
+  LSTM Fold 19/32 - train=560, test=20
+    Epoch 1/100 - Train: 0.087087, Val: 0.236950
+    Epoch 20/100 - Train: 0.004781, Val: 0.026551
+    Early stopping at epoch 28
+  LSTM Fold 20/32 - train=580, test=20
+    Epoch 1/100 - Train: 0.111311, Val: 0.420028
+    Epoch 20/100 - Train: 0.004314, Val: 0.065564
+    Early stopping at epoch 25
+  LSTM Fold 21/32 - train=600, test=20
+    Epoch 1/100 - Train: 0.052142, Val: 0.401749
+    Epoch 20/100 - Train: 0.003606, Val: 0.078927
+    Early stopping at epoch 23
+  LSTM Fold 22/32 - train=620, test=20
+    Epoch 1/100 - Train: 0.021850, Val: 0.264873
+    Epoch 20/100 - Train: 0.002164, Val: 0.047032
+    Early stopping at epoch 27
+  LSTM Fold 23/32 - train=640, test=20
+    Epoch 1/100 - Train: 0.015690, Val: 0.235262
+    Epoch 20/100 - Train: 0.002302, Val: 0.043854
+    Early stopping at epoch 27
+  LSTM Fold 24/32 - train=660, test=20
+    Epoch 1/100 - Train: 0.072260, Val: 0.448302
+    Epoch 20/100 - Train: 0.006224, Val: 0.021664
+    Early stopping at epoch 36
+  LSTM Fold 25/32 - train=680, test=20
+    Epoch 1/100 - Train: 0.019253, Val: 0.220624
+    Epoch 20/100 - Train: 0.002556, Val: 0.026320
+    Epoch 40/100 - Train: 0.002176, Val: 0.023824
+    Early stopping at epoch 50
+  LSTM Fold 26/32 - train=700, test=20
+    Epoch 1/100 - Train: 0.044140, Val: 0.431706
+    Epoch 20/100 - Train: 0.004851, Val: 0.056819
+    Early stopping at epoch 24
+  LSTM Fold 27/32 - train=720, test=20
+    Epoch 1/100 - Train: 0.041943, Val: 0.271205
+    Epoch 20/100 - Train: 0.003474, Val: 0.027166
+    Early stopping at epoch 28
+  LSTM Fold 28/32 - train=740, test=20
+    Epoch 1/100 - Train: 0.024643, Val: 0.156101
+    Epoch 20/100 - Train: 0.004757, Val: 0.014873
+    Early stopping at epoch 31
+  LSTM Fold 29/32 - train=760, test=20
+    Epoch 1/100 - Train: 0.029397, Val: 0.135954
+    Epoch 20/100 - Train: 0.003626, Val: 0.008876
+    Early stopping at epoch 21
+  LSTM Fold 30/32 - train=780, test=20
+    Epoch 1/100 - Train: 0.021791, Val: 0.055749
+    Epoch 20/100 - Train: 0.003110, Val: 0.003765
+    Early stopping at epoch 24
+  LSTM Fold 31/32 - train=800, test=20
+    Epoch 1/100 - Train: 0.187753, Val: 0.189371
+    Epoch 20/100 - Train: 0.005243, Val: 0.001301
+    Early stopping at epoch 22
+  LSTM Fold 32/32 - train=820, test=20
+    Epoch 1/100 - Train: 0.032458, Val: 0.091156
+    Epoch 20/100 - Train: 0.004164, Val: 0.003352
+    Early stopping at epoch 20
+
+============================================================
+  [EVAL] BiLSTM ù Evaluation Results
+============================================================
+
+  -------------------- PRIMARY (Classification) --------------------
+  Directional Accuracy : 50.42%
+  F1 Score             : 0.4990
+  Precision            : 0.5116
+  Recall               : 0.5109
+
+  Confusion Matrix (Actual \ Predicted):
+                   Pred DOWN   Pred UP
+    Actual DOWN  |       181 |     102
+    Actual UP    |       194 |     120
+
+  -------------------- SECONDARY (Regression) --------------------
+  RMSE                 : 44.4854
+  MAE                  : 36.2617
+  MAPE                 : 8.05%
+  R-Squared            : -0.0432
+Model saved to 'models/lstm_model.pt'
+Future predictions saved to 'data/future_predictions_lstm.csv'
+
+[4/7] Training Time-Series Transformer (walk-forward)...
+  Transformer Fold 1/32 - train=200, test=20
+    Epoch 1/100 - Train: 0.233685, Val: 0.007874
+    Early stopping at epoch 17
+  Transformer Fold 2/32 - train=220, test=20
+    Epoch 1/100 - Train: 0.019263, Val: 0.002844
+    Early stopping at epoch 16
+  Transformer Fold 3/32 - train=240, test=20
+    Epoch 1/100 - Train: 0.085049, Val: 0.060972
+    Early stopping at epoch 17
+  Transformer Fold 4/32 - train=260, test=20
+    Epoch 1/100 - Train: 0.103103, Val: 0.032865
+    Early stopping at epoch 17
+  Transformer Fold 5/32 - train=280, test=20
+    Epoch 1/100 - Train: 0.153257, Val: 0.085026
+    Epoch 20/100 - Train: 0.027681, Val: 0.027895
+    Epoch 40/100 - Train: 0.009496, Val: 0.001615
+    Early stopping at epoch 52
+  Transformer Fold 6/32 - train=300, test=20
+    Epoch 1/100 - Train: 0.185294, Val: 0.010127
+    Epoch 20/100 - Train: 0.022220, Val: 0.003747
+    Early stopping at epoch 38
+  Transformer Fold 7/32 - train=320, test=20
+    Epoch 1/100 - Train: 0.041001, Val: 0.002557
+    Early stopping at epoch 16
+  Transformer Fold 8/32 - train=340, test=20
+    Epoch 1/100 - Train: 0.046914, Val: 0.001055
+    Early stopping at epoch 16
+  Transformer Fold 9/32 - train=360, test=20
+    Epoch 1/100 - Train: 0.034749, Val: 0.005550
+    Epoch 20/100 - Train: 0.005892, Val: 0.004466
+    Early stopping at epoch 23
+  Transformer Fold 10/32 - train=380, test=20
+    Epoch 1/100 - Train: 0.029776, Val: 0.008193
+    Epoch 20/100 - Train: 0.009436, Val: 0.003781
+    Early stopping at epoch 37
+  Transformer Fold 11/32 - train=400, test=20
+    Epoch 1/100 - Train: 0.068735, Val: 0.016308
+    Epoch 20/100 - Train: 0.008684, Val: 0.001480
+    Early stopping at epoch 26
+  Transformer Fold 12/32 - train=420, test=20
+    Epoch 1/100 - Train: 0.017284, Val: 0.013466
+    Epoch 20/100 - Train: 0.006117, Val: 0.001879
+    Early stopping at epoch 27
+  Transformer Fold 13/32 - train=440, test=20
+    Epoch 1/100 - Train: 0.032767, Val: 0.001638
+    Epoch 20/100 - Train: 0.011555, Val: 0.001804
+    Early stopping at epoch 28
+  Transformer Fold 14/32 - train=460, test=20
+    Epoch 1/100 - Train: 0.030320, Val: 0.001891
+    Epoch 20/100 - Train: 0.010106, Val: 0.001314
+    Epoch 40/100 - Train: 0.008508, Val: 0.001580
+    Epoch 60/100 - Train: 0.005973, Val: 0.000874
+    Epoch 80/100 - Train: 0.005599, Val: 0.000751
+    Epoch 100/100 - Train: 0.005436, Val: 0.000562
+  Transformer Fold 15/32 - train=480, test=20
+    Epoch 1/100 - Train: 0.028393, Val: 0.002817
+    Epoch 20/100 - Train: 0.011153, Val: 0.004722
+    Early stopping at epoch 29
+  Transformer Fold 16/32 - train=500, test=20
+    Epoch 1/100 - Train: 0.073283, Val: 0.028341
+    Epoch 20/100 - Train: 0.008158, Val: 0.008368
+    Early stopping at epoch 20
+  Transformer Fold 17/32 - train=520, test=20
+    Epoch 1/100 - Train: 0.050787, Val: 0.048556
+    Early stopping at epoch 19
+  Transformer Fold 18/32 - train=540, test=20
+    Epoch 1/100 - Train: 0.036861, Val: 0.005797
+    Early stopping at epoch 16
+  Transformer Fold 19/32 - train=560, test=20
+    Epoch 1/100 - Train: 0.034659, Val: 0.018021
+    Epoch 20/100 - Train: 0.010429, Val: 0.015228
+    Epoch 40/100 - Train: 0.006228, Val: 0.002795
+    Early stopping at epoch 59
+  Transformer Fold 20/32 - train=580, test=20
+    Epoch 1/100 - Train: 0.067463, Val: 0.006352
+    Early stopping at epoch 16
+  Transformer Fold 21/32 - train=600, test=20
+    Epoch 1/100 - Train: 0.018647, Val: 0.028706
+    Early stopping at epoch 17
+  Transformer Fold 22/32 - train=620, test=20
+    Epoch 1/100 - Train: 0.025539, Val: 0.055571
+    Epoch 20/100 - Train: 0.006651, Val: 0.020478
+    Epoch 40/100 - Train: 0.003919, Val: 0.011655
+    Early stopping at epoch 49
+  Transformer Fold 23/32 - train=640, test=20
+    Epoch 1/100 - Train: 0.033244, Val: 0.066091
+    Epoch 20/100 - Train: 0.006370, Val: 0.009850
+    Epoch 40/100 - Train: 0.005083, Val: 0.006452
+    Early stopping at epoch 42
+  Transformer Fold 24/32 - train=660, test=20
+    Epoch 1/100 - Train: 0.019789, Val: 0.013473
+    Epoch 20/100 - Train: 0.012223, Val: 0.002703
+    Early stopping at epoch 28
+  Transformer Fold 25/32 - train=680, test=20
+    Epoch 1/100 - Train: 0.041433, Val: 0.046049
+    Epoch 20/100 - Train: 0.006729, Val: 0.001419
+    Epoch 40/100 - Train: 0.003980, Val: 0.000661
+    Epoch 60/100 - Train: 0.003782, Val: 0.001257
+    Early stopping at epoch 70
+  Transformer Fold 26/32 - train=700, test=20
+    Epoch 1/100 - Train: 0.033541, Val: 0.043790
+    Epoch 20/100 - Train: 0.007325, Val: 0.001484
+    Epoch 40/100 - Train: 0.005653, Val: 0.000488
+    Early stopping at epoch 41
+  Transformer Fold 27/32 - train=720, test=20
+    Epoch 1/100 - Train: 0.021592, Val: 0.005530
+    Epoch 20/100 - Train: 0.005504, Val: 0.004957
+    Early stopping at epoch 25
+  Transformer Fold 28/32 - train=740, test=20
+    Epoch 1/100 - Train: 0.046063, Val: 0.006471
+    Early stopping at epoch 16
+  Transformer Fold 29/32 - train=760, test=20
+    Epoch 1/100 - Train: 0.031939, Val: 0.027944
+    Epoch 20/100 - Train: 0.005836, Val: 0.013825
+    Early stopping at epoch 20
+  Transformer Fold 30/32 - train=780, test=20
+    Epoch 1/100 - Train: 0.038910, Val: 0.022071
+    Early stopping at epoch 17
+  Transformer Fold 31/32 - train=800, test=20
+    Epoch 1/100 - Train: 0.035407, Val: 0.022676
+    Early stopping at epoch 17
+  Transformer Fold 32/32 - train=820, test=20
+    Epoch 1/100 - Train: 0.021236, Val: 0.022657
+    Epoch 20/100 - Train: 0.010187, Val: 0.006987
+    Epoch 40/100 - Train: 0.004279, Val: 0.001249
+    Early stopping at epoch 50
+
+============================================================
+  [EVAL] Transformer ù Evaluation Results
+============================================================
+
+  -------------------- PRIMARY (Classification) --------------------
+  Directional Accuracy : 45.56%
+  F1 Score             : 0.4441
+  Precision            : 0.4598
+  Recall               : 0.4643
+
+  Confusion Matrix (Actual \ Predicted):
+                   Pred DOWN   Pred UP
+    Actual DOWN  |       179 |     104
+    Actual UP    |       221 |      93
+
+  -------------------- SECONDARY (Regression) --------------------
+  RMSE                 : 32.0940
+  MAE                  : 24.9299
+  MAPE                 : 5.77%
+  R-Squared            : 0.4570
+
+[5/7] Running Baselines (Naive + ARIMA)...
+  Baselines ù Fold 1/32...
+  Baselines ù Fold 2/32...
+  Baselines ù Fold 3/32...
+  Baselines ù Fold 4/32...
+  Baselines ù Fold 5/32...
+  Baselines ù Fold 6/32...
+  Baselines ù Fold 7/32...
+  Baselines ù Fold 8/32...
+  Baselines ù Fold 9/32...
+  Baselines ù Fold 10/32...
+  Baselines ù Fold 11/32...
+  Baselines ù Fold 12/32...
+  Baselines ù Fold 13/32...
+  Baselines ù Fold 14/32...
+  Baselines ù Fold 15/32...
+  Baselines ù Fold 16/32...
+  Baselines ù Fold 17/32...
+  Baselines ù Fold 18/32...
+  Baselines ù Fold 19/32...
+  Baselines ù Fold 20/32...
+  Baselines ù Fold 21/32...
+  Baselines ù Fold 22/32...
+  Baselines ù Fold 23/32...
+  Baselines ù Fold 24/32...
+  Baselines ù Fold 25/32...
+  Baselines ù Fold 26/32...
+  Baselines ù Fold 27/32...
+  Baselines ù Fold 28/32...
+  Baselines ù Fold 29/32...
+  Baselines ù Fold 30/32...
+  Baselines ù Fold 31/32...
+  Baselines ù Fold 32/32...
+
+============================================================
+  [EVAL] Naive (Zero-Change) ù Evaluation Results
+============================================================
+
+  -------------------- PRIMARY (Classification) --------------------
+  Directional Accuracy : 49.58%
+  F1 Score             : 0.4956
+  Precision            : 0.4961
+  Recall               : 0.4961
+
+  Confusion Matrix (Actual \ Predicted):
+                   Pred DOWN   Pred UP
+    Actual DOWN  |       142 |     141
+    Actual UP    |       160 |     154
+
+  -------------------- SECONDARY (Regression) --------------------
+  RMSE                 : 6.6221
+  MAE                  : 4.6679
+  MAPE                 : 1.10%
+  R-Squared            : 0.9769
+
+============================================================
+  [EVAL] ARIMA (5,1,0) ù Evaluation Results
+============================================================
+
+  -------------------- PRIMARY (Classification) --------------------
+  Directional Accuracy : 45.56%
+  F1 Score             : 0.3306
+  Precision            : 0.3716
+  Recall               : 0.4793
+
+  Confusion Matrix (Actual \ Predicted):
+                   Pred DOWN   Pred UP
+    Actual DOWN  |       265 |      18
+    Actual UP    |       307 |       7
+
+  -------------------- SECONDARY (Regression) --------------------
+  RMSE                 : 21.9554
+  MAE                  : 15.1165
+  MAPE                 : 3.54%
+  R-Squared            : 0.7459
+
+[6/7] Building OOF Meta-Ensemble...
+  -> Meta-Learner incorporates 'VIX' for dynamic weighting.
+  Meta-Learner OOF Residual Std: +/-$10.55
+  Meta-Learner trained on 512 samples, evaluated on 128 OOF samples.
+
+============================================================
+  [EVAL] Hybrid Meta (Regressor) ù Evaluation Results
+============================================================
+
+  -------------------- PRIMARY (Classification) --------------------
+  Directional Accuracy : 53.27%
+  F1 Score             : 0.5258
+  Precision            : 0.5441
+  Recall               : 0.5404
+
+  Confusion Matrix (Actual \ Predicted):
+                   Pred DOWN   Pred UP
+    Actual DOWN  |       195 |      88
+    Actual UP    |       191 |     123
+
+  -------------------- SECONDARY (Regression) --------------------
+  RMSE                 : 7.7604
+  MAE                  : 5.7067
+  MAPE                 : 1.35%
+  R-Squared            : 0.9682
+  Classification Meta-Learner OOF Accuracy: 74.22%
+
+  Calibrating confidence intervals on test data...
+
+============================================================
+  CONFIDENCE INTERVAL CALIBRATION REPORT
+============================================================
+  Nominal Level       : 95.0%
+  Empirical Coverage  : 93.59%
+  Samples Inside      : 599 / 640
+  Status              : [OK] WELL-CALIBRATED
+============================================================
+
+
+[7/7] Generating reports...
+
+================================================================================
+  MODEL COMPARISON  (Classification = Primary, Regression = Secondary)
+================================================================================
+                          Directional Accuracy (%)  F1 Score  Precision    Recall     RMSE      MAE  MAPE (%)      R2  Max Error
+Model                                                                                                                           
+Tree Ensemble                             49.75000  0.496300   0.501400  0.501400  11.6197   8.4121      1.94  0.9287    46.7099
+BiLSTM                                    50.42000  0.499000   0.511600  0.510900  44.4854  36.2617      8.05 -0.0432   108.3749
+Transformer                               45.56000  0.444100   0.459800  0.464300  32.0940  24.9299      5.77  0.4570    80.7325
+Hybrid Meta (Regressor)                   53.27000  0.525800   0.544100  0.540400   7.7604   5.7067      1.35  0.9682    44.8088
+Hybrid Meta (Classifier)                  69.53125  0.687843   0.704633  0.690167      NaN      NaN       NaN     NaN        NaN
+Naive (Zero-Change)                       49.58000  0.495600   0.496100  0.496100   6.6221   4.6679      1.10  0.9769    47.9166
+ARIMA (5,1,0)                             45.56000  0.330600   0.371600  0.479300  21.9554  15.1165      3.54  0.7459    94.0707
+================================================================================
+
+Comparison table saved to 'data/model_comparison.csv'
+Saved: images/actual_vs_predicted.png
+Saved: images/residual_distribution.png
+Saved: images/walk_forward_folds.png
+Saved: images/confusion_matrix_tree.png
+Saved: images/confusion_matrix_bilstm.png
+Saved: images/confusion_matrix_transformer.png
+Saved: images/confusion_matrix_hybrid_meta.png
+Saved: images/future_predictions.png
+Saved: images/model_comparison.png
+Saved: images/feature_importance.png
+
+======================================================================
+  [OK] PIPELINE COMPLETE (Walk-Forward, Classification-Primary)
+  [OK] Generated 11 visualization PNGs in 'images/' directory.
+======================================================================
+
+  [FORECAST] MSFT - Next 30 Business Day Predictions (Hybrid):
+    2026-08-14:  $481.15  [466.25 - 496.04]
+    2026-08-17:  $466.61  [451.71 - 481.50]
+    2026-08-18:  $470.05  [455.15 - 484.95]
+    2026-08-19:  $470.05  [455.15 - 484.95]
+    2026-08-20:  $470.05  [455.15 - 484.95]
+    2026-08-21:  $470.05  [455.15 - 484.95]
+    2026-08-24:  $470.05  [455.15 - 484.95]
+    2026-08-25:  $470.05  [455.15 - 484.95]
+    2026-08-26:  $470.05  [455.15 - 484.95]
+    2026-08-27:  $470.05  [455.15 - 484.95]
+    2026-08-28:  $470.05  [455.15 - 484.95]
+    2026-08-31:  $470.05  [455.15 - 484.95]
+    2026-09-01:  $470.05  [455.15 - 484.95]
+    2026-09-02:  $470.05  [455.15 - 484.95]
+    2026-09-03:  $470.28  [455.38 - 485.18]
+    2026-09-04:  $460.71  [445.81 - 475.61]
+    2026-09-07:  $460.71  [445.81 - 475.61]
+    2026-09-08:  $460.71  [445.81 - 475.61]
+    2026-09-09:  $460.71  [445.81 - 475.61]
+    2026-09-10:  $447.95  [433.05 - 462.84]
+    2026-09-11:  $447.28  [432.39 - 462.18]
+    2026-09-14:  $429.34  [414.44 - 444.23]
+    2026-09-15:  $418.28  [403.39 - 433.18]
+    2026-09-16:  $418.14  [403.25 - 433.04]
+    2026-09-17:  $416.96  [402.06 - 431.85]
+    2026-09-18:  $416.61  [401.72 - 431.51]
+    2026-09-21:  $416.61  [401.72 - 431.51]
+    2026-09-22:  $416.61  [401.72 - 431.51]
+    2026-09-23:  $416.61  [401.72 - 431.51]
+    2026-09-24:  $416.61  [401.72 - 431.51]
