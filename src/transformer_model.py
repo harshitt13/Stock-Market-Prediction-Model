@@ -411,7 +411,7 @@ def train_transformer_model(
     future_preds_scaled = []
     
     # Track the raw data to dynamically rebuild features
-    history_df = data.copy().iloc[-100:].reset_index(drop=True)
+    history_df = data.copy().reset_index(drop=True)
 
     last_model.eval()
     for i in range(future_days):

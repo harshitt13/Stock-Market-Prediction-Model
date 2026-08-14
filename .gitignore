@@ -24,6 +24,7 @@ ENV/
 .pytest_cache/
 
 # Generated outputs (regenerated on each pipeline run)
+*.log
 data/*.csv
 models/*.pkl
 models/*.pt

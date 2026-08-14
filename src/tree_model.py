@@ -188,8 +188,8 @@ def train_tree_model(
 
     future_predictions = []
     
-    # We only need the last ~60 rows to compute rolling features up to 50 days
-    history_df = data.copy().iloc[-100:].reset_index(drop=True)
+    # We only need the last ~60 rows to compute rolling features up to 50 days, but to be safe and consistent we keep the whole dataframe
+    history_df = data.copy().reset_index(drop=True)
 
     for i in range(future_days):
         # The last row has the current engineered features

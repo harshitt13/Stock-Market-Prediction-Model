@@ -201,9 +201,8 @@ def train_meta_ensemble_oof(
     X_meta_eval = X_meta[meta_train_end:]
     y_meta_eval = y_true[meta_train_end:]
 
-    meta_model = XGBRegressor(
-        n_estimators=100, max_depth=3, learning_rate=0.05, random_state=42
-    )
+    from sklearn.linear_model import RidgeCV
+    meta_model = RidgeCV(alphas=(0.1, 1.0, 10.0))
     meta_model.fit(X_meta_train, y_meta_train)
 
     # Predict on evaluation portion (OOF - model never saw this data)
@@ -239,25 +238,25 @@ def train_classification_meta_ensemble_oof(
     n = len(y_true)
     meta_train_end = int(n * 0.8)
 
-    # Get Previous Close to determine directions
+    # Get Current Close (T) to determine directions to T+1
     df_prices = stock_data[["Date", "Close"]].copy()
     df_prices["Date"] = _strip_tz(df_prices["Date"])
-    df_prices["Prev_Close"] = df_prices["Close"].shift(1)
+    df_prices.rename(columns={"Close": "Current_Close"}, inplace=True)
     
     df_meta = pd.DataFrame({"Date": _strip_tz(test_dates)})
     df_meta = df_meta.merge(df_prices, on="Date", how="left")
     
     # Forward fill just in case, though they should match exactly
-    df_meta["Prev_Close"] = df_meta["Prev_Close"].ffill().bfill()
-    prev_close = df_meta["Prev_Close"].values
+    df_meta["Current_Close"] = df_meta["Current_Close"].ffill().bfill()
+    current_close = df_meta["Current_Close"].values
 
     # Base models' predicted directions
-    tree_dir = (tree_pred > prev_close).astype(int)
-    lstm_dir = (lstm_pred > prev_close).astype(int)
-    tf_dir = (tf_pred > prev_close).astype(int)
+    tree_dir = (tree_pred > current_close).astype(int)
+    lstm_dir = (lstm_pred > current_close).astype(int)
+    tf_dir = (tf_pred > current_close).astype(int)
     
     # True direction
-    y_class = (y_true > prev_close).astype(int)
+    y_class = (y_true > current_close).astype(int)
 
     X_meta = np.column_stack([tree_dir, lstm_dir, tf_dir])
 
@@ -430,20 +429,26 @@ def run_pipeline(
         # We align with evaluate.py logic:
         df_prices = stock_data[["Date", "Close"]].copy()
         df_prices["Date"] = _strip_tz(df_prices["Date"])
-        df_prices["Prev_Close"] = df_prices["Close"].shift(1)
+        df_prices.rename(columns={"Close": "Current_Close"}, inplace=True)
         df_meta = pd.DataFrame({"Date": _strip_tz(dates)})
         df_meta = df_meta.merge(df_prices, on="Date", how="left")
-        df_meta["Prev_Close"] = df_meta["Prev_Close"].ffill().bfill()
+        df_meta["Current_Close"] = df_meta["Current_Close"].ffill().bfill()
         
-        y_class_true = (y_true > df_meta["Prev_Close"].values).astype(int)
+        y_class_true = (y_true > df_meta["Current_Close"].values).astype(int)
+        
+        # WE MUST EVALUATE ON THE OOF PORTION ONLY TO AVOID LEAKAGE
+        n_clf = len(y_class_true)
+        meta_train_end_clf = int(n_clf * 0.8)
+        y_eval_true = y_class_true[meta_train_end_clf:]
+        pred_eval = clf_pred_all[meta_train_end_clf:]
         
         from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
         clf_metrics = {
             "Model": "Hybrid Meta (Classifier)",
-            "Directional Accuracy (%)": accuracy_score(y_class_true, clf_pred_all) * 100,
-            "F1 Score": f1_score(y_class_true, clf_pred_all, average="macro"),
-            "Precision": precision_score(y_class_true, clf_pred_all, average="macro", zero_division=0),
-            "Recall": recall_score(y_class_true, clf_pred_all, average="macro", zero_division=0),
+            "Directional Accuracy (%)": accuracy_score(y_eval_true, pred_eval) * 100,
+            "F1 Score": f1_score(y_eval_true, pred_eval, average="macro"),
+            "Precision": precision_score(y_eval_true, pred_eval, average="macro", zero_division=0),
+            "Recall": recall_score(y_eval_true, pred_eval, average="macro", zero_division=0),
             "RMSE": np.nan,
             "MAE": np.nan,
             "MAPE (%)": np.nan,

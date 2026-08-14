@@ -11,7 +11,8 @@ def compute_rsi(series, window=14):
     gain = delta.where(delta > 0, 0.0).rolling(window=window).mean()
     loss = (-delta.where(delta < 0, 0.0)).rolling(window=window).mean()
     rs = gain / loss
-    return 100 - (100 / (1 + rs))
+    rsi = 100 - (100 / (1 + rs))
+    return rsi.replace([np.inf, -np.inf], 100.0).fillna(50.0)
 
 
 def compute_atr(high, low, close, window=14):
@@ -127,8 +128,8 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
 
     df['ATR_14'] = compute_atr(df['High'], df['Low'], df['Close'], window=14)
 
-    df['Log_Return'] = np.log(df['Close'] / df['Close'].shift(1))
-    df['Volatility_20'] = df['Log_Return'].rolling(window=20).std()
+    df['Log_Return'] = np.log(df['Close'] / df['Close'].shift(1)).replace([np.inf, -np.inf], 0.0).fillna(0.0)
+    df['Volatility_20'] = df['Log_Return'].rolling(window=20).std().replace([np.inf, -np.inf], 0.0).fillna(0.0)
 
     # ── Volume Indicators ────────────────────────────────────────────
     if 'Volume' in df.columns:
@@ -149,8 +150,8 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
 
     # ── Macro Features (Correlations) ────────────────────────────────
     if 'SP500' in df.columns:
-        df['Corr_SP500_20'] = df['Close'].rolling(window=20).corr(df['SP500'])
-        df['SP500_Return_1d'] = df['SP500'].pct_change(1)
+        df['Corr_SP500_20'] = df['Close'].rolling(window=20).corr(df['SP500']).replace([np.inf, -np.inf], 0.0).fillna(0.0)
+        df['SP500_Return_1d'] = df['SP500'].pct_change(1).replace([np.inf, -np.inf], 0.0).fillna(0.0)
     if 'VIX' in df.columns:
         df['VIX_Change'] = df['VIX'].diff()
 
