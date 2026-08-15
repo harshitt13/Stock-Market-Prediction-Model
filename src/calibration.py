@@ -49,8 +49,8 @@ def compute_volatility_adjusted_ci(
     # Let the multiplier shrink below 1.0 in low volatility, but bounded
     volatility_multiplier = np.clip(vix_current / vix_historical_mean, 0.5, 2.0)
     
-    # We apply a slight reduction factor (0.85) because empirical coverage was ~99.5% for a 95% target
-    dynamic_std = residual_std * volatility_multiplier * 0.85
+    # We apply a slight reduction factor (0.92) to hit the 95% nominal target more conservatively
+    dynamic_std = residual_std * volatility_multiplier * 0.92
 
     lower = predictions - z * dynamic_std
     upper = predictions + z * dynamic_std
