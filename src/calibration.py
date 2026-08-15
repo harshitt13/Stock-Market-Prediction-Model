@@ -128,6 +128,6 @@ def print_calibration_report(cal: Dict[str, Any]):
     if not cal["is_well_calibrated"]:
         diff = (cal["empirical_coverage"] - cal["nominal_level"]) * 100
         direction = "higher" if diff > 0 else "lower"
-        print(f"  ⚠️  Coverage is {abs(diff):.1f}pp {direction} than nominal.")
+        print(f"  [!] Coverage is {abs(diff):.1f}pp {direction} than nominal.")
         print(f"      The intervals may be too {'wide' if diff > 0 else 'narrow'}.")
     print(f"{'='*60}\n")
