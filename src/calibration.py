@@ -12,23 +12,20 @@ from typing import Dict, Any, Tuple, Optional
 
 def compute_volatility_adjusted_ci(
     predictions: np.ndarray,
-    residual_std: float,
+    residuals: np.ndarray,
     vix_current: float,
     vix_historical_mean: float,
     confidence_level: float = 0.95,
-) -> Tuple[np.ndarray, np.ndarray, float]:
+) -> Tuple[np.ndarray, np.ndarray, Tuple[float, float]]:
     """
-    Compute a volatility-adjusted confidence interval around predictions.
-
-    The interval width is scaled by the ratio of current VIX to its
-    historical mean — wider during high-volatility regimes.
+    Compute a volatility-adjusted confidence interval around predictions using empirical quantiles.
 
     Parameters
     ----------
     predictions : array
         Point predictions.
-    residual_std : float
-        Standard deviation of residuals from meta-learner training.
+    residuals : array
+        Array of residuals from OOF meta-learner evaluation.
     vix_current : float
         Current VIX level.
     vix_historical_mean : float
@@ -40,22 +37,22 @@ def compute_volatility_adjusted_ci(
     -------
     lower, upper : arrays
         Lower and upper bounds of the interval.
-    dynamic_std : float
-        The volatility-adjusted standard deviation used.
+    empirical_offsets : Tuple[float, float]
+        The computed empirical (lower_offset, upper_offset).
     """
-    from scipy import stats
-    z = stats.norm.ppf((1 + confidence_level) / 2)
+    lower_percentile = (1 - confidence_level) / 2 * 100
+    upper_percentile = (1 + confidence_level) / 2 * 100
+
+    empirical_lower_offset = np.percentile(residuals, lower_percentile)
+    empirical_upper_offset = np.percentile(residuals, upper_percentile)
 
     # Let the multiplier shrink below 1.0 in low volatility, but bounded
     volatility_multiplier = np.clip(vix_current / vix_historical_mean, 0.5, 2.0)
     
-    # We apply a slight reduction factor (0.92) to hit the 95% nominal target more conservatively
-    dynamic_std = residual_std * volatility_multiplier * 0.92
+    lower = predictions + empirical_lower_offset * volatility_multiplier
+    upper = predictions + empirical_upper_offset * volatility_multiplier
 
-    lower = predictions - z * dynamic_std
-    upper = predictions + z * dynamic_std
-
-    return lower, upper, dynamic_std
+    return lower, upper, (empirical_lower_offset, empirical_upper_offset)
 
 
 def calibrate_confidence_interval(
@@ -63,6 +60,7 @@ def calibrate_confidence_interval(
     lower: np.ndarray,
     upper: np.ndarray,
     nominal_level: float = 0.95,
+    residuals: Optional[np.ndarray] = None,
 ) -> Dict[str, Any]:
     """
     Validate empirical coverage of the confidence interval.
@@ -75,16 +73,12 @@ def calibrate_confidence_interval(
         Predicted interval bounds.
     nominal_level : float
         The intended confidence level (e.g. 0.95).
+    residuals : Optional array
+        The array of OOF residuals used to build the intervals.
 
     Returns
     -------
-    dict with:
-        - empirical_coverage : float (0-1)
-        - nominal_level : float
-        - n_inside : int
-        - n_total : int
-        - is_well_calibrated : bool  (coverage within ±5pp of nominal)
-        - flag : str  (OK / UNDER-COVERED / OVER-COVERED)
+    dict with coverage metrics.
     """
     y_true = np.asarray(y_true, dtype=np.float64)
     lower = np.asarray(lower, dtype=np.float64)
@@ -95,22 +89,24 @@ def calibrate_confidence_interval(
     n_total = len(y_true)
     coverage = n_inside / n_total if n_total > 0 else 0.0
 
-    # Tolerance: ±5 percentage points
-    tolerance = 0.05
-    is_well_calibrated = abs(coverage - nominal_level) <= tolerance
+    # Tolerance: [0.90, 0.97] is considered OK based on 128 samples noise
+    is_well_calibrated = (0.90 <= coverage <= 0.97)
 
-    if coverage < nominal_level - tolerance:
+    if coverage < 0.90:
         flag = "[!] UNDER-COVERED"
-    elif coverage > nominal_level + tolerance:
+    elif coverage > 0.97:
         flag = "[!] OVER-COVERED"
     else:
         flag = "[OK] WELL-CALIBRATED"
+
+    n_residuals = len(residuals) if residuals is not None else "N/A"
 
     return {
         "empirical_coverage": round(coverage, 4),
         "nominal_level": nominal_level,
         "n_inside": n_inside,
         "n_total": n_total,
+        "n_residuals": n_residuals,
         "is_well_calibrated": is_well_calibrated,
         "flag": flag,
     }
@@ -123,6 +119,7 @@ def print_calibration_report(cal: Dict[str, Any]):
     print(f"{'='*60}")
     print(f"  Nominal Level       : {cal['nominal_level']*100:.1f}%")
     print(f"  Empirical Coverage  : {cal['empirical_coverage']*100:.2f}%")
+    print(f"  OOF Residuals (n)   : {cal.get('n_residuals', 'N/A')}")
     print(f"  Samples Inside      : {cal['n_inside']} / {cal['n_total']}")
     print(f"  Status              : {cal['flag']}")
     if not cal["is_well_calibrated"]:

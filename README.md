@@ -90,7 +90,16 @@ The pipeline treats predicting the exact future price as a secondary goal. Predi
 - **MAPE (Mean Absolute Percentage Error):** Percentage deviation from the true price.
 
 ### Confidence Interval Calibration
-A critical component of this system is outputting probabilistic forecasts rather than deterministic point estimates. The pipeline generates a volatility-adjusted 95% Confidence Interval. It then validates this interval empirically by measuring what percentage of the true test data actually fell within the predicted bounds, explicitly verifying statistical calibration.
+A critical component of this system is outputting probabilistic forecasts rather than deterministic point estimates. The pipeline generates a volatility-adjusted 95% Confidence Interval. 
+
+**Methodological Improvement:** Initially, the system scaled a standard deviation multiplier under a naive Gaussian assumption. However, due to neural network non-determinism (LSTM/Transformer weight initialization causing the residual spread to vary) and the non-Gaussian nature of financial returns (fat tails), a scalar multiplier proved brittle and required constant retuning. 
+
+The system now utilizes an **empirical quantile-based approach**:
+1. During the OOF meta-learner evaluation, the full distribution of OOF residuals (`actual - predicted`) is collected.
+2. The empirical 2.5th and 97.5th percentiles are extracted directly from these residuals.
+3. These empirical offsets are applied to future predictions, scaled dynamically by the current market volatility (VIX vs its historical mean).
+
+This allows the confidence intervals to self-calibrate strictly to the observed residual distribution shape (including any skewness or fat tails) on every run, validating empirically against the test data to ensure coverage lands safely near the nominal 95% target.
 
 ---
 

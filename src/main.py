@@ -211,13 +211,14 @@ def train_meta_ensemble_oof(
     # Also predict on all data for reporting
     meta_pred_all = meta_model.predict(X_meta)
 
-    # Residual std from the OOF evaluation portion
-    residual_std = np.std(y_meta_eval - meta_pred_eval)
+    # Residuals from the OOF evaluation portion
+    residuals = y_meta_eval - meta_pred_eval
+    residual_std = np.std(residuals)
     print(f"  Meta-Learner OOF Residual Std: +/-${residual_std:.2f}")
     print(f"  Meta-Learner trained on {meta_train_end} samples, "
           f"evaluated on {len(y_meta_eval)} OOF samples.")
 
-    return meta_model, meta_pred_all, residual_std
+    return meta_model, meta_pred_all, residuals
 
 
 from xgboost import XGBClassifier
@@ -307,13 +308,13 @@ def generate_confidence_intervals(
     lstm_future: np.ndarray,
     tf_future: np.ndarray,
     stock_data: pd.DataFrame,
-    residual_std: float,
+    residuals: np.ndarray,
     future_days: int,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, float]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Tuple[float, float]]:
     """
     Generate volatility-adjusted confidence intervals for future predictions.
 
-    Returns (hybrid_future, conf_lower, conf_upper, dynamic_std).
+    Returns (hybrid_future, conf_lower, conf_upper, empirical_offsets).
     """
     X_meta_future = np.column_stack([tree_future, lstm_future, tf_future])
 
@@ -330,11 +331,11 @@ def generate_confidence_intervals(
 
     hybrid_future = meta_model.predict(X_meta_future)
 
-    conf_lower, conf_upper, dynamic_std = compute_volatility_adjusted_ci(
-        hybrid_future, residual_std, vix_current, vix_mean, confidence_level=0.95
+    conf_lower, conf_upper, empirical_offsets = compute_volatility_adjusted_ci(
+        hybrid_future, residuals, vix_current, vix_mean, confidence_level=0.95
     )
 
-    return hybrid_future, conf_lower, conf_upper, dynamic_std
+    return hybrid_future, conf_lower, conf_upper, empirical_offsets
 
 
 def run_pipeline(
@@ -410,7 +411,7 @@ def run_pipeline(
 
     if y_true is not None and len(y_true) > 10:
         # 1. Regression Meta-Learner (Magnitude & CI)
-        meta_model, hybrid_test_pred, residual_std = train_meta_ensemble_oof(
+        meta_model, hybrid_test_pred, residuals = train_meta_ensemble_oof(
             y_true, tree_p, lstm_p, tf_p, stock_data, dates
         )
 
@@ -458,27 +459,28 @@ def run_pipeline(
         all_metrics.append(clf_metrics)
 
         # Future predictions with CI (using Regression model)
-        hybrid_future, conf_lower, conf_upper, _ = generate_confidence_intervals(
+        hybrid_future, conf_lower, conf_upper, empirical_offsets = generate_confidence_intervals(
             meta_model,
             base_results["tree"]["future_predictions"],
             base_results["lstm"]["future_predictions"],
             base_results["transformer"]["future_predictions"],
             stock_data,
-            residual_std,
+            residuals,
             future_days,
         )
+        print(f"  Empirical Quantile Offsets used for CI: 2.5th = {empirical_offsets[0]:.2f}, 97.5th = +{empirical_offsets[1]:.2f}")
 
         # Confidence interval calibration on test data
         print("\n  Calibrating confidence intervals on test data...")
         test_lower, test_upper, _ = compute_volatility_adjusted_ci(
             hybrid_test_pred,
-            residual_std,
+            residuals,
             stock_data["VIX"].iloc[-1] if "VIX" in stock_data.columns else 20.0,
             stock_data["VIX"].mean() if "VIX" in stock_data.columns else 20.0,
             confidence_level=0.95,
         )
         calibration_report = calibrate_confidence_interval(
-            y_true, test_lower, test_upper, nominal_level=0.95
+            y_true, test_lower, test_upper, nominal_level=0.95, residuals=residuals
         )
         print_calibration_report(calibration_report)
     else:
