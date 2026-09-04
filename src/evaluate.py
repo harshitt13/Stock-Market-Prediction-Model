@@ -78,6 +78,8 @@ def directional_accuracy(
         result.update(
             {
                 "directional_accuracy": float("nan"),
+                "majority_class_rate": float("nan"),
+                "da_minus_majority": float("nan"),
                 "f1_macro": float("nan"),
                 "precision_macro": float("nan"),
                 "recall_macro": float("nan"),
@@ -104,6 +106,13 @@ def directional_accuracy(
             "confusion_matrix": confusion_matrix(actual, predicted, labels=[0, 1]),
             "base_rate_up": float(actual.mean()),
             "predicted_rate_up": float(predicted.mean()),
+            # Always predicting the more common direction scores this much.
+            # Directional accuracy is only informative as a delta against it:
+            # 55% on a sample that is 55% up is worth nothing.
+            "majority_class_rate": float(max(actual.mean(), 1.0 - actual.mean())),
+            "da_minus_majority": float(
+                (actual == predicted).mean() - max(actual.mean(), 1.0 - actual.mean())
+            ),
         }
     )
     return result
@@ -317,6 +326,7 @@ def diebold_mariano(errors_a, errors_b, h: int = 1, loss: str = "squared") -> Di
 #: Metrics summarised as mean +/- std across folds.
 FOLD_METRIC_KEYS = [
     "directional_accuracy",
+    "da_minus_majority",
     "f1_macro",
     "precision_macro",
     "recall_macro",
@@ -475,6 +485,11 @@ def print_evaluation(result: Dict[str, Any]) -> None:
         f"    days excluded        : {pooled['excluded_fraction'] * 100:6.2f}% "
         f"(|y_true| <= {pooled['threshold']:.4f})"
     )
+    print(
+        f"  Majority-class rate    : {pooled['majority_class_rate'] * 100:6.2f}%  "
+        f"(always predicting the more common direction)"
+    )
+    print(f"  DA - majority          : {pooled['da_minus_majority'] * 100:+6.2f} pp")
     pt_stat = pooled.get("pt_statistic", float("nan"))
     pt_p = pooled.get("pt_p_value", float("nan"))
     print(f"  Pesaran-Timmermann     : {pt_stat:6.3f}  (p = {pt_p:.4f}, one-sided)")
@@ -518,6 +533,8 @@ def compare_evaluations(
             {
                 "Model": result["model"],
                 "DA (%)": round(pooled["directional_accuracy"] * 100, 2),
+                "Majority (%)": round(pooled["majority_class_rate"] * 100, 2),
+                "DA - majority": round(pooled["da_minus_majority"] * 100, 2),
                 "DA std (%)": round(summary["directional_accuracy_std"] * 100, 2),
                 "PT stat": round(pooled.get("pt_statistic", float("nan")), 3),
                 "PT p": round(pooled.get("pt_p_value", float("nan")), 4),
