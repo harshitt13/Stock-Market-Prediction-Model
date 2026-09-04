@@ -377,6 +377,227 @@ def write_aggregates(results_dir: str = PREDICTIONS_DIR, out_dir: str = RESULTS_
     return outputs
 
 
+
+
+# ---------------------------------------------------------------------------
+# Parallel sweep over a cached universe
+# ---------------------------------------------------------------------------
+
+#: Tickers that get every model. The rest get the cheap ones only, because the
+#: neural models cost roughly twenty times the tree and the question the sweep
+#: answers -- is the null universal -- does not need them on all thirty.
+FULL_MODEL_TICKERS = ("AAPL", "JPM", "JNJ", "XOM", "WMT")
+
+CHEAP_MODELS = ("tree", "baselines")
+ALL_MODELS = ("tree", "lstm", "transformer", "baselines", "meta")
+
+
+def cached_loader(raw_dir: str):
+    """A load_raw callable that reads the cached CSV for a ticker."""
+
+    def load(ticker, start, end):
+        path = os.path.join(raw_dir, f"{ticker.replace('/', '-')}.csv")
+        if not os.path.exists(path):
+            return None
+        return pd.read_csv(path, parse_dates=["Date"])
+
+    return load
+
+
+def fold_return_diagnostics(dataset, folds, ticker: str, regime: str = "full"):
+    """Per-fold train/test return-distribution comparison.
+
+    A walk-forward fold trains on one return distribution and is scored on the
+    next one. The KS test says how often those differ enough to notice, which
+    bounds how much any model could have learned that still applies.
+    """
+    from scipy import stats
+
+    rows = []
+    for fold_id, (train_idx, test_idx) in enumerate(folds):
+        y_train = dataset.y[np.asarray(train_idx)]
+        y_test = dataset.y[np.asarray(test_idx)]
+        ks = stats.ks_2samp(y_train, y_test)
+        rows.append(
+            {
+                "ticker": ticker,
+                "regime": regime,
+                "fold_id": fold_id,
+                "n_train": len(y_train),
+                "n_test": len(y_test),
+                "train_mean_bps": float(y_train.mean()) * 1e4,
+                "test_mean_bps": float(y_test.mean()) * 1e4,
+                "train_std_bps": float(y_train.std()) * 1e4,
+                "test_std_bps": float(y_test.std()) * 1e4,
+                "ks_stat": float(ks.statistic),
+                "ks_p": float(ks.pvalue),
+                "ks_reject_5pct": bool(ks.pvalue < 0.05),
+                "test_outside_train_range": float(
+                    np.mean((y_test < y_train.min()) | (y_test > y_train.max()))
+                ),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def run_ticker_task(task: dict) -> dict:
+    """Worker entry point. Picklable, returns paths and small frames only.
+
+    Large prediction frames are written to disk here rather than shipped back
+    through the pool, so inter-process traffic stays small.
+    """
+    import time
+
+    import torch
+
+    torch.set_num_threads(task.get("torch_threads", 2))
+
+    ticker = task["ticker"]
+    started = time.time()
+
+    try:
+        loader = cached_loader(task["raw_dir"])
+        raw = loader(ticker, None, None)
+        if raw is None:
+            return {"ticker": ticker, "ok": False, "error": "no cached CSV"}
+
+        dataset = build_dataset(raw)
+        folds = WalkForwardSplitter(
+            task["min_train"], task["test_size"], task["step_size"]
+        ).split(len(dataset))
+        if not folds:
+            return {"ticker": ticker, "ok": False, "error": "no folds"}
+
+        frame = run_single(
+            ticker,
+            task["regime"],
+            task["seed"],
+            load_raw=loader,
+            min_train_size=task["min_train"],
+            test_size=task["test_size"],
+            step_size=task["step_size"],
+            epochs=task["epochs"],
+            include_models=task["models"],
+            meta_min_train_folds=task.get("meta_min_train_folds", 2),
+        )
+        if frame is None:
+            return {"ticker": ticker, "ok": False, "error": "no predictions"}
+
+        path = save_run(frame, run_path(ticker, task["regime"], task["seed"],
+                                        task["results_dir"]))
+        diagnostics = fold_return_diagnostics(dataset, folds, ticker, task["regime"])
+
+        return {
+            "ticker": ticker,
+            "ok": True,
+            "path": path,
+            "n_rows": len(frame),
+            "n_models": frame["model"].nunique(),
+            "models": task["models"],
+            "diagnostics": diagnostics,
+            "seconds": time.time() - started,
+        }
+    except Exception as exc:  # pragma: no cover - worker isolation
+        import traceback
+
+        return {
+            "ticker": ticker,
+            "ok": False,
+            "error": f"{type(exc).__name__}: {exc}",
+            "traceback": traceback.format_exc()[-1500:],
+            "seconds": time.time() - started,
+        }
+
+
+def sweep_parallel(
+    tickers: Sequence[str],
+    full_model_tickers: Sequence[str] = FULL_MODEL_TICKERS,
+    raw_dir: str = os.path.join("results", "raw"),
+    results_dir: str = PREDICTIONS_DIR,
+    regime: str = "full",
+    seed: int = 42,
+    min_train: int = 1008,
+    test_size: int = 252,
+    step_size: int = 252,
+    epochs: int = 100,
+    max_workers: Optional[int] = None,
+    torch_threads: int = 2,
+):
+    """Run the sweep across tickers in a process pool.
+
+    Heavy tasks are submitted first so the long neural runs start immediately
+    and the cheap ones fill in around them, rather than the pool draining with
+    one five-model ticker still going.
+    """
+    import time
+    from concurrent.futures import ProcessPoolExecutor, as_completed
+
+    if max_workers is None:
+        max_workers = max(1, min(len(tickers), (os.cpu_count() or 4) // torch_threads))
+
+    full = [t for t in tickers if t in set(full_model_tickers)]
+    cheap = [t for t in tickers if t not in set(full_model_tickers)]
+
+    def make(ticker, models):
+        return {
+            "ticker": ticker, "regime": regime, "seed": seed, "models": list(models),
+            "raw_dir": raw_dir, "results_dir": results_dir, "min_train": min_train,
+            "test_size": test_size, "step_size": step_size, "epochs": epochs,
+            "torch_threads": torch_threads,
+        }
+
+    tasks = [make(t, ALL_MODELS) for t in full] + [make(t, CHEAP_MODELS) for t in cheap]
+
+    print(f"\n{SURVIVORSHIP_WARNING}\n")
+    print(f"Sweep: {len(tasks)} tasks "
+          f"({len(full)} all-model, {len(cheap)} cheap-model) "
+          f"on {max_workers} workers x {torch_threads} torch threads "
+          f"({os.cpu_count()} logical cores)")
+    print(f"Folds: min_train={min_train} test={test_size} step={step_size}, "
+          f"seed={seed}, epochs={epochs}")
+
+    started = time.time()
+    results, diagnostics = [], []
+
+    with ProcessPoolExecutor(max_workers=max_workers) as pool:
+        futures = {pool.submit(run_ticker_task, t): t["ticker"] for t in tasks}
+        for done, future in enumerate(as_completed(futures), 1):
+            outcome = future.result()
+            results.append(outcome)
+            if outcome.get("ok"):
+                diagnostics.append(outcome.pop("diagnostics"))
+                print(f"  [{done:>2}/{len(tasks)}] {outcome['ticker']:<6} ok  "
+                      f"{outcome['n_rows']:>6} rows, {outcome['n_models']} models, "
+                      f"{outcome['seconds'] / 60:.1f} min")
+            else:
+                print(f"  [{done:>2}/{len(tasks)}] {outcome['ticker']:<6} FAILED: "
+                      f"{outcome.get('error')}")
+
+    wall = time.time() - started
+    cpu_minutes = sum(r.get("seconds", 0) for r in results) / 60
+    ok = [r for r in results if r.get("ok")]
+
+    print(f"\nWall clock : {wall / 60:.1f} min on {max_workers} workers")
+    print(f"CPU time   : {cpu_minutes:.1f} min  (speed-up {cpu_minutes / (wall / 60):.1f}x)")
+    print(f"Succeeded  : {len(ok)}/{len(tasks)}")
+
+    fold_diagnostics = (
+        pd.concat(diagnostics, ignore_index=True) if diagnostics else pd.DataFrame()
+    )
+    if not fold_diagnostics.empty:
+        os.makedirs(RESULTS_DIR, exist_ok=True)
+        fold_diagnostics.to_csv(os.path.join(RESULTS_DIR, "fold_diagnostics.csv"),
+                                index=False)
+
+    return {
+        "results": results,
+        "fold_diagnostics": fold_diagnostics,
+        "wall_minutes": wall / 60,
+        "cpu_minutes": cpu_minutes,
+        "max_workers": max_workers,
+    }
+
+
 def main() -> None:
     import argparse
 
@@ -393,13 +614,41 @@ def main() -> None:
     parser.add_argument("--results-dir", default=PREDICTIONS_DIR)
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument(
+        "--parallel",
+        action="store_true",
+        help="Run tickers in a process pool, reading the cache from "
+             "src/fetch_universe.py. Uses --workers and --torch-threads.",
+    )
+    parser.add_argument("--workers", type=int, default=None)
+    parser.add_argument("--torch-threads", type=int, default=2)
+    parser.add_argument(
+        "--full-models",
+        nargs="*",
+        default=list(FULL_MODEL_TICKERS),
+        help="Tickers that get every model; the rest get tree + baselines.",
+    )
+    parser.add_argument(
         "--aggregate-only",
         action="store_true",
         help="Skip training and just recompute aggregates from persisted runs",
     )
     args = parser.parse_args()
 
-    if not args.aggregate_only:
+    if args.parallel and not args.aggregate_only:
+        sweep_parallel(
+            tickers=args.tickers,
+            full_model_tickers=args.full_models,
+            regime=args.regimes[0],
+            seed=args.seeds[0],
+            min_train=args.min_train,
+            test_size=args.test_size,
+            step_size=args.step_size,
+            epochs=args.epochs,
+            max_workers=args.workers,
+            torch_threads=args.torch_threads,
+            results_dir=args.results_dir,
+        )
+    elif not args.aggregate_only:
         sweep(
             tickers=args.tickers,
             regimes=args.regimes,

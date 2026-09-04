@@ -296,6 +296,85 @@ def _sharpe_cell(value: float):
     return NOT_APPLICABLE if not np.isfinite(value) else round(value, 3)
 
 
+def holm_bonferroni(p_values, alpha: float = 0.05):
+    """Holm-Bonferroni step-down correction. Returns adjusted p-values.
+
+    Testing ten strategies for alpha and reporting the largest t-statistic is
+    ten tests, not one. Under a pure null the expected maximum |t| across ten
+    independent tests is around 1.7-1.9, so an uncorrected t of 1.71 is not
+    evidence of anything -- it is what no-alpha looks like when you look ten
+    times. Holm controls the family-wise error rate without assuming the tests
+    are independent, which matters here because the strategies trade the same
+    asset and their returns are strongly correlated.
+
+    NaN p-values are passed through untouched and excluded from the count.
+    """
+    p = np.asarray(p_values, dtype=float)
+    finite = np.isfinite(p)
+    m = int(finite.sum())
+    adjusted = np.full_like(p, np.nan)
+    if m == 0:
+        return adjusted
+
+    order = np.argsort(np.where(finite, p, np.inf))[:m]
+    running = 0.0
+    for rank, idx in enumerate(order):
+        value = (m - rank) * p[idx]
+        running = max(running, value)          # step-down: enforce monotonicity
+        adjusted[idx] = min(1.0, running)
+    return adjusted
+
+
+def execution_lag(predictions: pd.DataFrame, days: int = 1) -> pd.DataFrame:
+    """Delay every forecast by ``days`` trading days before acting on it.
+
+    A backtest that trades on the same close it forecasts from assumes
+    instantaneous execution. Shifting the prediction forward tests whether an
+    edge survives being acted on one day late, which is the weakest realistic
+    friction. Rows with no lagged forecast are dropped.
+    """
+    if days < 1:
+        return predictions
+    lagged = predictions.sort_values("target_date").reset_index(drop=True).copy()
+    lagged["y_pred"] = lagged["y_pred"].shift(days)
+    return lagged.dropna(subset=["y_pred"]).reset_index(drop=True)
+
+
+def stress_alpha(
+    predictions: pd.DataFrame,
+    name: str = "model",
+    cost_grid=(0.0, 7.5, 10.0),
+    lag_grid=(0, 1),
+    mode: str = LONG_FLAT,
+) -> pd.DataFrame:
+    """Alpha under a grid of transaction costs and execution lags.
+
+    An alpha that only exists at zero cost and zero lag is a property of the
+    backtest, not of the forecast.
+    """
+    rows = []
+    for lag in lag_grid:
+        lagged = execution_lag(predictions, lag)
+        for cost in cost_grid:
+            result = backtest(lagged, mode=mode, cost_bps=cost)
+            adjusted = result["market_adjusted"]
+            rows.append(
+                {
+                    "model": name,
+                    "lag_days": lag,
+                    "cost_bps": cost,
+                    "n": len(lagged),
+                    "alpha_ann": adjusted["alpha_annualised"],
+                    "t_alpha": adjusted["t_alpha"],
+                    "p_alpha": adjusted["p_alpha"],
+                    "beta": adjusted["beta"],
+                    "sharpe_net": result["net"]["sharpe"],
+                    "ann_return_net": result["net"]["annualised_return"],
+                }
+            )
+    return pd.DataFrame(rows)
+
+
 def backtest_table(
     results_by_model: Dict[str, pd.DataFrame],
     mode: str = LONG_FLAT,
@@ -347,6 +426,7 @@ def backtest_table(
                 # from being long the market every day.
                 "Alpha ann.": _round(adjusted["alpha_annualised"], 4),
                 "t(alpha)": _round(adjusted["t_alpha"], 2),
+                "p(alpha)": _round(adjusted["p_alpha"], 4),
                 "Beta": _round(adjusted["beta"], 3),
                 "Exposure": _round(result["average_exposure"], 3),
                 # SECONDARY: raw risk/return.
@@ -368,6 +448,16 @@ def backtest_table(
 
     table = pd.DataFrame(rows).set_index("Model")
 
+    # Testing every strategy for alpha is a family of tests, not one. Correct
+    # across the strategies actually reported.
+    raw_p = pd.to_numeric(table["p(alpha)"], errors="coerce").to_numpy(float)
+    table.insert(
+        table.columns.get_loc("p(alpha)") + 1,
+        "p(alpha) Holm",
+        [NOT_APPLICABLE if not np.isfinite(v) else round(float(v), 4)
+         for v in holm_bonferroni(raw_p)],
+    )
+
     benchmark = (
         benchmark_predictions if benchmark_predictions is not None
         else frames[reference_name]
@@ -376,6 +466,7 @@ def backtest_table(
     table.loc["Buy and hold"] = {
         "Alpha ann.": 0.0,   # the benchmark has no alpha against itself
         "t(alpha)": NOT_APPLICABLE,
+        "p(alpha)": NOT_APPLICABLE,
         "Beta": 1.0,
         "Exposure": 1.0,
         "Sharpe gross": _sharpe_cell(hold["sharpe"]),
@@ -385,6 +476,7 @@ def backtest_table(
         "Max drawdown": round(hold["max_drawdown"], 4),
         "Ann. turnover": 0.0,
         "Breakeven cost (bps)": NOT_APPLICABLE,
+        "p(alpha) Holm": NOT_APPLICABLE,
         "Beats B&H net": True,
     }
     return table
