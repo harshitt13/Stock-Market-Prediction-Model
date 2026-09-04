@@ -330,13 +330,15 @@ FOLD_METRIC_KEYS = [
 
 
 def _metrics_for_slice(
-    close_t, y_true, y_pred, threshold: float, y_train=None
+    close_t, y_true, y_pred, threshold: float, y_train=None, benchmark=None
 ) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
     out.update(directional_accuracy(y_true, y_pred, threshold))
     out.update(return_error_metrics(y_true, y_pred))
     out.update(price_space_metrics(close_t, y_true, y_pred))
-    out["r2_oos"] = r2_oos(y_true, y_pred, expanding_mean_benchmark(y_true, y_train))
+    if benchmark is None:
+        benchmark = expanding_mean_benchmark(y_true, y_train)
+    out["r2_oos"] = r2_oos(y_true, y_pred, benchmark)
     return out
 
 
@@ -395,17 +397,39 @@ def evaluate_predictions(
     bars). The pooled directional numbers are safe to compute here precisely
     because the definition is ``sign(y_pred)`` -- there is no differencing, so
     concatenating folds introduces no boundary artefacts.
+
+    ``y_train_by_fold`` maps ``fold_id`` to that fold's training returns and
+    should be supplied whenever it is available. Without it the R2_OOS
+    benchmark starts cold, and its first few values are one- and
+    two-observation means. On a test period that opens with a volatile stretch
+    those are terrible forecasts, the benchmark's SSE inflates, and *every*
+    model scores an R2_OOS that is too high. On the AAPL fixture, seeding moves
+    the zero-return baseline from +0.087 to -0.005. The result carries
+    ``unseeded_benchmark`` so a caller cannot miss it.
     """
     if validate:
         validate_predictions(predictions, name=model_name)
 
+    predictions = predictions.reset_index(drop=True)
     fold_metrics = per_fold_metrics(predictions, threshold, y_train_by_fold)
 
     close_t = predictions["close_t"].to_numpy(float)
     y_true = predictions["y_true"].to_numpy(float)
     y_pred = predictions["y_pred"].to_numpy(float)
 
-    pooled = _metrics_for_slice(close_t, y_true, y_pred, threshold)
+    # The pooled benchmark is built per fold, each seeded with its own training
+    # returns, then reassembled in target_date order. Building it over the
+    # pooled series instead would restart the expanding mean from nothing.
+    benchmark = np.empty(len(predictions), dtype=float)
+    for fold_id, block in predictions.groupby("fold_id", sort=True):
+        y_train = None if y_train_by_fold is None else y_train_by_fold.get(int(fold_id))
+        benchmark[block.index.to_numpy()] = expanding_mean_benchmark(
+            block["y_true"].to_numpy(float), y_train
+        )
+
+    pooled = _metrics_for_slice(
+        close_t, y_true, y_pred, threshold, benchmark=benchmark
+    )
     pooled.update(pesaran_timmermann(y_true, y_pred))
 
     return {
@@ -414,6 +438,7 @@ def evaluate_predictions(
         "per_fold": fold_metrics,
         "summary": summarize_across_folds(fold_metrics),
         "n_predictions": len(predictions),
+        "unseeded_benchmark": y_train_by_fold is None,
         "first_target_date": predictions["target_date"].iloc[0],
         "last_target_date": predictions["target_date"].iloc[-1],
     }
@@ -460,6 +485,12 @@ def print_evaluation(result: Dict[str, Any]) -> None:
         f"  R2_OOS (Campbell-Thom.): {pooled['r2_oos']:+7.5f}  pooled;  "
         f"{summary['r2_oos_mean']:+.5f} +/- {summary['r2_oos_std']:.5f} across folds"
     )
+    if result.get("unseeded_benchmark"):
+        print(
+            "    WARNING: benchmark not seeded with training returns, so its "
+            "first values are one- and two-observation means. R2_OOS is "
+            "biased upward; pass y_train_by_fold."
+        )
     print(f"  RMSE / MAE             : {pooled['rmse_bps']:6.1f} / "
           f"{pooled['mae_bps']:.1f} bps")
 

@@ -117,6 +117,65 @@ def empty_predictions() -> pd.DataFrame:
     )
 
 
+def align_predictions(
+    results_by_model: dict, require_identical: bool = True
+) -> pd.DataFrame:
+    """Merge several models' result frames into one wide frame on target_date.
+
+    Because every model and baseline emits the same ``target_date`` values,
+    alignment is a merge with an assertion rather than a reindexing exercise.
+    ``require_identical`` enforces that the date sets match exactly; set it
+    False to fall back to the intersection (a sequence model with a longer
+    lookback, say), in which case the shrinkage is reported.
+
+    Returns a frame with ``target_date``, ``close_t``, ``y_true`` and one
+    ``y_pred_<model>`` column per model.
+    """
+    if not results_by_model:
+        raise ValueError("no models to align")
+
+    frames = {}
+    for name, item in results_by_model.items():
+        df = item["predictions"] if isinstance(item, dict) else item
+        validate_predictions(df, name=name)
+        frames[name] = df
+
+    date_sets = {name: set(df["target_date"]) for name, df in frames.items()}
+    reference_name, reference_dates = next(iter(date_sets.items()))
+
+    if require_identical:
+        for name, dates in date_sets.items():
+            if dates != reference_dates:
+                only_ref = len(reference_dates - dates)
+                only_this = len(dates - reference_dates)
+                _fail(
+                    name,
+                    f"target_date set differs from {reference_name!r}: "
+                    f"{only_ref} days missing here, {only_this} extra. "
+                    "Every model must forecast the same days.",
+                )
+
+    shared = set.intersection(*date_sets.values())
+    if not shared:
+        raise ContractViolation("models share no forecast days at all")
+    if len(shared) < len(reference_dates):
+        print(
+            f"align_predictions: keeping {len(shared)} shared days "
+            f"of {len(reference_dates)}"
+        )
+
+    keep = sorted(shared)
+    out = frames[reference_name][
+        frames[reference_name]["target_date"].isin(keep)
+    ][["target_date", "close_t", "y_true"]].reset_index(drop=True)
+
+    for name, df in frames.items():
+        subset = df[df["target_date"].isin(keep)].sort_values("target_date")
+        out[f"y_pred_{name}"] = subset["y_pred"].to_numpy()
+
+    return out
+
+
 def make_predictions(target_date, fold_id, close_t, y_true, y_pred) -> pd.DataFrame:
     """Assemble a standard result frame with the right dtypes and order.
 
