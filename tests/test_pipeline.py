@@ -179,3 +179,40 @@ def test_cli_exposes_the_demo_forecast_flag():
     args = parser.parse_args(["--demo-forecast", "10"])
     assert args.demo_forecast == 10
     assert parser.parse_args([]).demo_forecast == 0
+
+
+def test_backtest_table_is_produced(result):
+    """Section 8: directional accuracy does not pay for lunch."""
+    output, workdir = result
+    economics = output["economics"]
+    assert (workdir / "data" / "backtest.csv").exists()
+    assert "Buy and hold" in economics.index
+    for column in ("Sharpe gross", "Sharpe net", "Max drawdown", "Breakeven cost (bps)"):
+        assert column in economics.columns
+
+
+def test_costs_are_actually_charged(result):
+    """Net return is always at or below gross; costs are non-negative.
+
+    Note the Sharpe ratio is NOT monotone in cost: subtracting a varying cost
+    series changes the numerator and the denominator, so net Sharpe can exceed
+    gross Sharpe. Only the return comparison is guaranteed.
+    """
+    output, _ = result
+    economics = output["economics"].drop(index="Buy and hold")
+    for name, row in economics.iterrows():
+        if row["Ann. turnover"] > 0:
+            assert row["Sharpe net"] != row["Sharpe gross"], name
+
+
+def test_a_strategy_is_only_a_finding_if_it_beats_buy_and_hold(result):
+    """Section 8: report the comparison either way."""
+    output, _ = result
+    economics = output["economics"]
+    assert "Beats B&H net" in economics.columns
+    assert economics.loc["Buy and hold", "Ann. turnover"] == 0.0
+
+
+def test_cli_exposes_the_cost_flag():
+    parser = main.build_parser()
+    assert parser.parse_args(["--cost-bps", "10"]).cost_bps == 10.0

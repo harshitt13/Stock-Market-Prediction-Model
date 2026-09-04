@@ -151,16 +151,74 @@ Guardrails that keep it honest:
 
 ---
 
-## 5. Known Issues and Lessons Learned
+## 5. Beyond One Stock
 
-During the architectural design, two critical modeling flaws were encountered, documented here as valuable case studies for time-series forecasting:
+### Experiment runner (`src/experiments.py`)
+One stock is an anecdote. The runner sweeps tickers, regimes and seeds, and
+persists **raw per-fold, per-ticker predictions** to `results/predictions/`.
+Every aggregate is then computed by reading those files back, never from
+whatever happens to still be in memory, so the tables can be rebuilt many times
+while writing up without retraining anything.
 
-1. **Target Definition Leakage:** The classification meta-learner initially achieved a suspiciously high 74% directional accuracy. Investigation revealed that the target comparison was evaluating whether the predicted $T+1$ close was greater than the $T-1$ close. Because the model already had the $T$ close during inference, it implicitly knew the trajectory of the first half of the sequence, resulting in heavy target leakage. Correcting the logic to strictly compare the predicted $T+1$ close against the current $T$ close restored the accuracy to realistic, baseline-comparable levels.
-2. **Recursive Forecasting Plateaus:** The 30-day future hybrid forecast initially exhibited a "staircase" pattern where prices remained perfectly flat for multiple consecutive days. This was diagnosed as an inherent limitation of using an `XGBRegressor` as the regression meta-learner. Because trees partition continuous spaces into discrete leaves, the slowly-drifting daily outputs of the base models failed to cross the tree's split thresholds, causing the model to output identical constants. Swapping the regression meta-learner for a smooth linear blender (`RidgeCV`) completely eliminated the artifact.
+```bash
+# Full sweep: 30 tickers, 5 seeds
+python src/experiments.py --regimes full
+
+# One regime, fewer seeds
+python src/experiments.py --tickers AAPL MSFT JPM --regimes crash_2020 --seeds 0 1 2
+
+# Rebuild the aggregate tables from runs already on disk
+python src/experiments.py --aggregate-only
+```
+
+Regimes: `pre_2020`, `crash_2020`, `drawdown_2021_2022`, `post_2023`, `full`.
+
+**Seed variance is reported**, in `results/seed_variance.csv`. Single-seed
+neural results are not credible: the spread across seeds is frequently larger
+than the gap between two models, and a comparison that ignores it is not a
+finding.
+
+> **Survivorship bias.** The default ticker list is 30 names that still trade
+> today. Companies delisted, acquired or bankrupted over the sample are absent,
+> which biases every aggregate upward. The runner prints this warning on every
+> sweep. Fixing it properly requires point-in-time index constituents including
+> delisted names.
+
+### Economic evaluation (`src/backtest.py`)
+Directional accuracy does not pay for lunch. A model can be right 53% of the
+time and still lose money, because the days it gets wrong are bigger than the
+days it gets right, or because it trades so often that costs eat the edge.
+
+The strategy is deliberately the simplest thing that follows from the forecast
+— take the predicted sign, long/flat or long/short — so what is measured is the
+forecast and not a trading overlay. Reported per model:
+
+- Sharpe ratio, **gross and net of costs**
+- Maximum drawdown and annualised turnover
+- **Break-even transaction cost**: the round-trip cost in basis points at which
+  the strategy stops being profitable. "Profitable at 5bps" and "profitable at
+  500bps" are very different claims.
+- **Buy-and-hold, on the same days, for comparison**
+
+Default cost is 7.5bps round-trip (`--cost-bps`), realistic for liquid US
+equities. If the strategy loses to buy-and-hold after costs, the pipeline says
+so plainly. That is a publishable finding and reviewers respect it.
 
 ---
 
-## 6. Usage and Execution
+## 6. Known Issues and Lessons Learned
+Flaws found and fixed during this project, kept as case studies. Each one produced plausible numbers rather than a crash, which is what made them dangerous.
+
+1. **Target Definition Leakage:** The classification meta-learner initially achieved a suspiciously high 74% directional accuracy. Investigation revealed that the target comparison was evaluating whether the predicted $T+1$ close was greater than the $T-1$ close. Because the model already had the $T$ close during inference, it implicitly knew the trajectory of the first half of the sequence, resulting in heavy target leakage. Correcting the logic to strictly compare the predicted $T+1$ close against the current $T$ close restored the accuracy to realistic, baseline-comparable levels.
+2. **Recursive Forecasting Plateaus:** The 30-day future hybrid forecast initially exhibited a "staircase" pattern where prices remained perfectly flat for multiple consecutive days. This was diagnosed as an inherent limitation of using an `XGBRegressor` as the regression meta-learner. Because trees partition continuous spaces into discrete leaves, the slowly-drifting daily outputs of the base models failed to cross the tree's split thresholds, causing the model to output identical constants. Swapping the regression meta-learner for a smooth linear blender (`RidgeCV`) completely eliminated the artifact.
+3. **The price-target identity function.** The original model was asked to predict tomorrow's *close* while being given today's close as a feature. It learned the identity function, scoring MAPE 0.89% and R-squared 0.975 while forecasting nothing: the naive "tomorrow equals today" baseline scores the same. Every price-level feature was also non-stationary, which trees cannot extrapolate past and MinMax scaling maps outside [0, 1] on any trending test fold. Fixed by moving the target to log returns and every feature to a scale-free transform.
+4. **Two incompatible definitions of directional accuracy.** One took `np.diff` of the concatenated *prediction series*, measuring whether prediction t+1 exceeded prediction t and inventing a spurious observation at every fold boundary. In return space the definition is just `sign(y_pred)` vs `sign(y_true)`, and the boundary problem disappears.
+5. **An 80/20 split inside the test set is not out-of-fold.** The meta-learner was fitted on the first 80% of pooled test rows and then reported metrics over 100% of them, making the hybrid numbers 80% in-sample and not comparable to any other row in the table. Fixed with fold-respecting stacking: fold k's meta-model sees only folds 0..k-1.
+6. **A cold R-squared-OOS benchmark flatters everything.** The expanding-mean benchmark was started from nothing on the pooled test series, so its first values were one- and two-observation means. On a test period opening with the March 2020 crash those are forecasts of double-digit moves, the benchmark's error inflates, and *every* model's R-squared-OOS rises with it — the zero-return baseline scored +0.087 instead of the correct -0.005. Fixed by seeding each fold's benchmark with that fold's training returns.
+
+---
+
+## 7. Usage and Execution
 
 ### Requirements
 - Python 3.10+
@@ -204,6 +262,6 @@ Executing the pipeline will populate the following directories:
 
 ---
 
-## 7. Disclaimer
+## 8. Disclaimer
 
 Stock predictions are inherently probabilistic and subject to extreme, unpredictable structural market regime shifts (black swan events). This model operates purely on technicals and macros, omitting fundamental analysis (P/E) and sentiment analysis (news). **Do not use this system for real financial trading.**

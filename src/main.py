@@ -25,6 +25,7 @@ import pandas as pd
 
 matplotlib.use("Agg")
 
+from backtest import DEFAULT_COST_BPS, backtest_table
 from baselines import run_all_baselines
 from contracts import align_predictions
 from dataset import Dataset, build_dataset
@@ -130,6 +131,7 @@ def run_pipeline(
     epochs: int = 100,
     demo_forecast_days: int = 0,
     meta_min_train_folds: int = MIN_TRAIN_FOLDS,
+    cost_bps: float = DEFAULT_COST_BPS,
     make_plots: bool = True,
 ) -> Dict[str, Any]:
     """Fetch, walk-forward train, stack, evaluate, report."""
@@ -256,6 +258,19 @@ def run_pipeline(
     )
     aligned.to_csv("data/aligned_predictions.csv", index=False)
 
+    # Section 8: directional accuracy does not pay for lunch.
+    economics = backtest_table(all_predictions, cost_bps=cost_bps)
+    print()
+    print(f"  {'-' * 12} ECONOMICS (long/flat, {cost_bps:.1f} bps round-trip) "
+          f"{'-' * 12}")
+    print(economics.to_string())
+    if not economics.drop(index="Buy and hold")["Beats B&H net"].any():
+        print(
+            "\n  No model beats buy-and-hold after costs. Stated plainly: that "
+            "is a publishable finding, and reviewers respect it."
+        )
+    economics.to_csv("data/backtest.csv")
+
     demo = _collect_demo_forecasts(base_results, gating, calibration)
     if demo is not None:
         demo.to_csv("data/combined_predictions.csv", index=False)
@@ -282,6 +297,7 @@ def run_pipeline(
         "comparison_df": comparison,
         "diebold_mariano": dm,
         "aligned": aligned,
+        "economics": economics,
     }
 
 
@@ -389,6 +405,15 @@ def build_parser() -> argparse.ArgumentParser:
             "meta-model for fold k is fitted only on folds 0..k-1. Default: 2"
         ),
     )
+    parser.add_argument(
+        "--cost-bps",
+        type=float,
+        default=DEFAULT_COST_BPS,
+        help=(
+            "Round-trip transaction cost in basis points for the backtest.\n"
+            f"Default: {DEFAULT_COST_BPS} (liquid US equities)"
+        ),
+    )
     parser.add_argument("--no-plots", action="store_true", help="Skip chart generation")
     return parser
 
@@ -407,6 +432,7 @@ def main() -> None:
         epochs=args.epochs,
         demo_forecast_days=args.demo_forecast,
         meta_min_train_folds=args.meta_min_folds,
+        cost_bps=args.cost_bps,
         make_plots=not args.no_plots,
     )
 
