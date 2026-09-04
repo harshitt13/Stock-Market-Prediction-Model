@@ -15,7 +15,6 @@ from datetime import datetime
 
 import numpy as np
 import pandas as pd
-import yfinance as yf
 
 # Guard for ratios whose denominator can legitimately collapse to zero
 # (a flat bar, a zero-width Bollinger band).
@@ -28,6 +27,19 @@ MACRO_SYMBOLS = {'^GSPC': 'SP500', '^VIX': 'VIX', '^TNX': 'TNX_Yield'}
 # and the macro levels have to survive so ``engineer_features`` can be re-run.
 RAW_COLUMNS = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume',
                'SP500', 'VIX', 'TNX_Yield']
+
+#: The only raw columns permitted to appear in FEATURE_COLUMNS as levels.
+#:
+#: Every other entry in RAW_COLUMNS is a price or volume level and is banned by
+#: default, which is the point: adding a new raw column bans it automatically,
+#: and permitting it requires an explicit edit here with a reason. Levels are
+#: what let a tree learn the identity function, and what put a scaled test set
+#: outside the training range on any trending series.
+#:
+#: VIX and TNX_Yield are exceptions on their merits: both are bounded and
+#: mean-reverting over the sample, and the meta-learner needs the VIX *level*
+#: to gate on volatility regime. 'Date' is not a feature at all.
+LEVEL_FEATURES_ALLOWED = ('VIX', 'TNX_Yield')
 
 # Non-stationary intermediates from the previous feature set. They are computed
 # as locals now; this list only exists so re-engineering an old CSV cannot
@@ -197,6 +209,20 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     return df[keep]
 
 
+def _get_ticker(symbol: str):
+    """Return a yfinance Ticker, importing yfinance lazily.
+
+    The import lives here rather than at module scope so that importing this
+    module -- which every test does -- neither requires yfinance to be
+    installed nor performs any network setup. Tests monkeypatch this function
+    to serve the recorded fixture, which is what makes them genuinely offline
+    rather than merely not-hitting-the-wire-today.
+    """
+    import yfinance as yf
+
+    return yf.Ticker(symbol)
+
+
 def fetch_stock_data(ticker_symbol, start_date, end_date=None):
     """
     Fetch stock data from Yahoo Finance and engineer the leak-free feature set.
@@ -213,7 +239,7 @@ def fetch_stock_data(ticker_symbol, start_date, end_date=None):
         end_date = datetime.now().strftime('%Y-%m-%d')
 
     print(f"Fetching data for {ticker_symbol} from {start_date} to {end_date}...")
-    ticker = yf.Ticker(ticker_symbol)
+    ticker = _get_ticker(ticker_symbol)
 
     try:
         df = ticker.history(start=start_date, end=end_date)
@@ -231,7 +257,7 @@ def fetch_stock_data(ticker_symbol, start_date, end_date=None):
         df.set_index('Date', inplace=True)
         for sym, name in MACRO_SYMBOLS.items():
             try:
-                m_df = yf.Ticker(sym).history(start=start_date, end=end_date)[['Close']]
+                m_df = _get_ticker(sym).history(start=start_date, end=end_date)[['Close']]
                 if not m_df.empty:
                     m_df.rename(columns={'Close': name}, inplace=True)
                     if m_df.index.tz is not None:

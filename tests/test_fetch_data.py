@@ -1,7 +1,10 @@
 """Tests for the data layer.
 
-Offline by construction: ``yfinance`` is stubbed with the recorded fixture, so
-nothing here touches the network or the repository's ``data/`` directory.
+Offline by construction. ``fetch_data._get_ticker`` is replaced with the
+recorded fixture, and ``yfinance`` is never imported at all: the module holds
+no top-level import of it, so these tests neither require it to be installed
+nor perform any network setup. Nothing here touches the repository's ``data/``
+directory either.
 """
 
 from pathlib import Path
@@ -59,8 +62,8 @@ class _EmptyTicker(_FakeTicker):
 
 @pytest.fixture
 def offline(monkeypatch, tmp_path):
-    """Stub yfinance and keep any CSV writes inside tmp_path."""
-    monkeypatch.setattr(fetch_data.yf, "Ticker", _FakeTicker)
+    """Serve the fixture instead of yfinance, and keep writes in tmp_path."""
+    monkeypatch.setattr(fetch_data, "_get_ticker", _FakeTicker)
     monkeypatch.chdir(tmp_path)
     return tmp_path
 
@@ -80,7 +83,7 @@ def test_fetch_stock_data_returns_features_and_saves_csv(offline):
 
 
 def test_fetch_stock_data_invalid_ticker(offline, monkeypatch):
-    monkeypatch.setattr(fetch_data.yf, "Ticker", _EmptyTicker)
+    monkeypatch.setattr(fetch_data, "_get_ticker", _EmptyTicker)
     assert fetch_stock_data("INVALID_TICKER_XYZ", "2018-01-01", "2022-01-01") is None
 
 
@@ -129,3 +132,32 @@ def test_macro_gaps_are_forward_filled_never_backward_filled():
     assert (engineered["VIX"].iloc[gap] == last_known).all()
     # A bfill would have used the first post-gap observation instead.
     assert engineered["VIX"].iloc[300] != first_after_gap
+
+
+def test_module_never_imports_yfinance_at_import_time():
+    """The offline guarantee, asserted rather than assumed.
+
+    A top-level ``import yfinance`` would make every test in this repository
+    depend on the package being installed, and on whatever network setup it
+    performs on import. The import lives inside ``_get_ticker`` instead.
+    """
+    import subprocess
+    import sys
+
+    repo = Path(fetch_data.__file__).parents[1]
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import sys; sys.path.insert(0, 'src'); import fetch_data; "
+            "print('yfinance' in sys.modules)",
+        ],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "False", (
+        "importing fetch_data pulled in yfinance; move the import back inside "
+        "_get_ticker"
+    )
