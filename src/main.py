@@ -60,10 +60,33 @@ Folds = List[Tuple[np.ndarray, np.ndarray]]
 # ---------------------------------------------------------------------------
 
 
+def load_raw_csv(path: str) -> pd.DataFrame:
+    """Load a frozen CSV instead of fetching.
+
+    Used to run this pipeline on exactly the data an earlier run saw, so a
+    before/after comparison measures the code change and nothing else. The file
+    only needs Date plus OHLCV and whatever macro columns are present; any
+    engineered columns it carries are recomputed by engineer_features and the
+    stale ones dropped, so a frozen file written by an older feature set still
+    works.
+    """
+    frame = pd.read_csv(path, parse_dates=["Date"])
+    missing = [c for c in ("Date", "Open", "High", "Low", "Close") if c not in frame.columns]
+    if missing:
+        raise ValueError(f"{path}: missing required columns {missing}")
+    print(f"  Loaded {len(frame)} rows from {path} (no fetch)")
+    return frame
+
+
 def fetch_and_prepare_data(
-    ticker: str, start_date: str, end_date: Optional[str] = None
+    ticker: str,
+    start_date: str,
+    end_date: Optional[str] = None,
+    raw_csv: Optional[str] = None,
 ) -> Optional[pd.DataFrame]:
-    """Fetch OHLCV plus macro context and engineer the leak-free feature set."""
+    """Fetch OHLCV plus macro context, or load a frozen CSV."""
+    if raw_csv:
+        return load_raw_csv(raw_csv)
     return fetch_stock_data(ticker, start_date, end_date)
 
 
@@ -136,6 +159,7 @@ def run_pipeline(
     demo_forecast_days: int = 0,
     meta_min_train_folds: int = MIN_TRAIN_FOLDS,
     cost_bps: float = DEFAULT_COST_BPS,
+    raw_csv: Optional[str] = None,
     make_plots: bool = True,
 ) -> Dict[str, Any]:
     """Fetch, walk-forward train, stack, evaluate, report."""
@@ -149,7 +173,7 @@ def run_pipeline(
     print("=" * 72)
 
     print("\n[1/7] Fetching data and engineering features...")
-    raw = fetch_and_prepare_data(ticker, start_date)
+    raw = fetch_and_prepare_data(ticker, start_date, raw_csv=raw_csv)
     if raw is None:
         print("ERROR: failed to fetch data.")
         return {"error": "data_fetch_failed"}
@@ -484,6 +508,17 @@ def build_parser() -> argparse.ArgumentParser:
             f"Default: {DEFAULT_COST_BPS} (liquid US equities)"
         ),
     )
+    parser.add_argument(
+        "--raw-csv",
+        type=str,
+        default=None,
+        metavar="PATH",
+        help=(
+            "Load a frozen CSV instead of fetching, so a run reproduces exactly\n"
+            "the data an earlier run saw. Engineered columns in the file are\n"
+            "recomputed; stale ones are dropped."
+        ),
+    )
     parser.add_argument("--no-plots", action="store_true", help="Skip chart generation")
     return parser
 
@@ -503,6 +538,7 @@ def main() -> None:
         demo_forecast_days=args.demo_forecast,
         meta_min_train_folds=args.meta_min_folds,
         cost_bps=args.cost_bps,
+        raw_csv=args.raw_csv,
         make_plots=not args.no_plots,
     )
 

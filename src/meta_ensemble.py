@@ -37,7 +37,14 @@ from evaluate import diebold_mariano, directional_accuracy, evaluate_predictions
 #: base-model history to fit a meta-learner without using the fold itself.
 MIN_TRAIN_FOLDS = 2
 
-RIDGE_ALPHAS = (0.01, 0.1, 1.0, 10.0, 100.0)
+#: Ridge penalties searched by leave-one-out CV, 1e-3 to 1e6.
+#:
+#: The original grid topped out at 100 and the CV pinned there on six of seven
+#: folds, which meant the search was censored: it wanted at least the maximum
+#: available and the grid could not say how much more. Widened to document the
+#: behaviour, not to tune it. Where it lands is reported per fold in
+#: fit_stacked_meta's fold_weights.
+RIDGE_ALPHAS = tuple(10.0 ** np.arange(-3, 7))
 
 VIX_COLUMN = "VIX"
 
