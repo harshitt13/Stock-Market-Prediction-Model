@@ -143,3 +143,136 @@ def test_reconstruct_close_inverts_the_log_return():
 def test_contract_violation_is_an_assertion_error():
     """So a bare `pytest.raises(AssertionError)` in a model test still works."""
     assert issubclass(ContractViolation, AssertionError)
+
+
+# ---------------------------------------------------------------------------
+# The common evaluation window
+# ---------------------------------------------------------------------------
+
+
+def windowed_frame(dates, fold_ids, seed=0):
+    rng = np.random.default_rng(seed)
+    n = len(dates)
+    return make_predictions(
+        target_date=dates,
+        fold_id=np.asarray(fold_ids, dtype=int),
+        close_t=np.full(n, 100.0),
+        y_true=rng.normal(0, 0.01, n),
+        y_pred=rng.normal(0, 0.01, n),
+    )
+
+
+def walk_forward_models(n_folds=9, fold_size=10, meta_starts_at=2):
+    """A base model over every fold and a meta over the later folds only."""
+    dates = pd.date_range("2020-01-01", periods=n_folds * fold_size, freq="B")
+    fold_ids = np.repeat(np.arange(n_folds), fold_size)
+    base = windowed_frame(dates, fold_ids, seed=1)
+    keep = fold_ids >= meta_starts_at
+    meta = windowed_frame(dates[keep], fold_ids[keep], seed=2)
+    return {"base": base, "meta": meta}
+
+
+class TestCommonEvaluationWindow:
+    def test_is_the_intersection_across_all_models(self):
+        from contracts import common_evaluation_window
+
+        models = walk_forward_models()
+        window = common_evaluation_window(models)
+        assert window.n == len(models["meta"])
+        assert window.start == models["meta"]["target_date"].iloc[0]
+        assert window.end == models["meta"]["target_date"].iloc[-1]
+
+    def test_reports_what_each_model_gave_up(self):
+        from contracts import common_evaluation_window
+
+        window = common_evaluation_window(walk_forward_models())
+        assert window.dropped_by_model["meta"] == 0
+        assert window.dropped_by_model["base"] == 20  # two folds of ten
+
+    def test_reference_is_the_widest_model(self):
+        from contracts import common_evaluation_window
+
+        assert common_evaluation_window(walk_forward_models()).reference_model == "base"
+
+    def test_rejects_a_disjoint_set(self):
+        from contracts import common_evaluation_window
+
+        a = windowed_frame(pd.date_range("2020-01-01", periods=10, freq="B"), np.zeros(10))
+        b = windowed_frame(pd.date_range("2021-01-01", periods=10, freq="B"), np.zeros(10))
+        with pytest.raises(ContractViolation, match="share no forecast days"):
+            common_evaluation_window({"a": a, "b": b})
+
+    def test_rejects_a_window_with_a_hole(self):
+        """A gap in the middle is a bug, not a windowing decision."""
+        from contracts import common_evaluation_window
+
+        models = walk_forward_models()
+        holed = models["meta"].drop(index=range(5, 10)).reset_index(drop=True)
+        with pytest.raises(ContractViolation, match="not contiguous"):
+            common_evaluation_window({"base": models["base"], "meta": holed})
+
+    def test_contiguity_check_can_be_waived(self):
+        from contracts import common_evaluation_window
+
+        models = walk_forward_models()
+        holed = models["meta"].drop(index=range(5, 10)).reset_index(drop=True)
+        window = common_evaluation_window(
+            {"base": models["base"], "meta": holed}, require_contiguous=False
+        )
+        assert window.n == len(holed)
+
+    def test_describe_names_the_range(self):
+        from contracts import common_evaluation_window
+
+        window = common_evaluation_window(walk_forward_models())
+        text = window.describe()
+        assert text.startswith(f"{window.n} forecast days")
+        assert f"{window.start:%Y-%m-%d} to {window.end:%Y-%m-%d}" in text
+
+
+class TestRestrictToWindow:
+    def test_every_model_ends_up_on_identical_days(self):
+        from contracts import common_evaluation_window, restrict_all
+
+        models = walk_forward_models()
+        window = common_evaluation_window(models)
+        restricted = restrict_all(models, window)
+
+        date_sets = [set(df["target_date"]) for df in restricted.values()]
+        assert all(s == date_sets[0] for s in date_sets)
+        assert all(len(df) == window.n for df in restricted.values())
+
+    def test_restricted_frames_still_satisfy_the_contract(self):
+        from contracts import common_evaluation_window, restrict_all
+
+        models = walk_forward_models()
+        for df in restrict_all(models, common_evaluation_window(models)).values():
+            validate_predictions(df)
+
+    def test_alignment_becomes_an_exact_merge(self):
+        from contracts import align_predictions, common_evaluation_window, restrict_all
+
+        models = walk_forward_models()
+        restricted = restrict_all(models, common_evaluation_window(models))
+        wide = align_predictions(restricted, require_identical=True)
+        assert len(wide) == len(restricted["meta"])
+
+    def test_a_model_missing_window_days_fails_loudly(self):
+        from contracts import common_evaluation_window, restrict_to_window
+
+        models = walk_forward_models()
+        window = common_evaluation_window(models)
+        short = models["meta"].iloc[:-3]
+        with pytest.raises(ContractViolation, match="does not cover"):
+            restrict_to_window(short, window, "short")
+
+    def test_y_true_is_untouched_by_restriction(self):
+        from contracts import common_evaluation_window, restrict_to_window
+
+        models = walk_forward_models()
+        window = common_evaluation_window(models)
+        restricted = restrict_to_window(models["base"], window, "base")
+        merged = restricted.merge(
+            models["base"], on="target_date", suffixes=("", "_orig")
+        )
+        np.testing.assert_allclose(merged["y_true"], merged["y_true_orig"])

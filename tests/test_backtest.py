@@ -168,3 +168,74 @@ class TestReporting:
 
     def test_realistic_default_cost(self):
         assert 5.0 <= DEFAULT_COST_BPS <= 10.0
+
+
+class TestOneEvaluationWindow:
+    def test_mismatched_day_sets_are_rejected(self):
+        """The bug this guards: buy-and-hold used to be measured on whichever
+        model came first in the dict, which on a walk-forward run meant the
+        base models' full range while the meta covered only later folds."""
+        rng = np.random.default_rng(0)
+        y = rng.normal(0, 0.02, 100)
+        full = frame(y, rng.normal(0, 0.02, 100))
+        short = full.iloc[30:].reset_index(drop=True)
+
+        with pytest.raises(ValueError, match="different evaluation windows"):
+            backtest_table({"full": full, "short": short})
+
+    def test_buy_and_hold_uses_the_named_benchmark(self):
+        from backtest import backtest
+
+        rng = np.random.default_rng(1)
+        y = rng.normal(0, 0.02, 200)
+        a = frame(y, rng.normal(0, 0.02, 200))
+        b = frame(y, rng.normal(0, 0.02, 200))
+
+        table = backtest_table({"a": a, "b": b}, benchmark_predictions=b)
+        expected = backtest(b)["buy_and_hold"]
+        assert table.loc["Buy and hold", "Total return net"] == pytest.approx(
+            round(expected["total_return"], 4)
+        )
+
+    def test_buy_and_hold_is_identical_whichever_model_names_it(self):
+        """On one window every model carries the same realised returns."""
+        rng = np.random.default_rng(2)
+        y = rng.normal(0, 0.02, 200)
+        a = frame(y, rng.normal(0, 0.02, 200))
+        b = frame(y, rng.normal(0, 0.02, 200))
+
+        from_a = backtest_table({"a": a, "b": b}, benchmark_predictions=a)
+        from_b = backtest_table({"a": a, "b": b}, benchmark_predictions=b)
+        pd.testing.assert_series_equal(
+            from_a.loc["Buy and hold"], from_b.loc["Buy and hold"]
+        )
+
+
+class TestZeroReturnRow:
+    """The benchmark every model must beat should still have a readable row."""
+
+    @pytest.fixture
+    def zero_table(self):
+        rng = np.random.default_rng(3)
+        y = rng.normal(0.0005, 0.02, 300)
+        return backtest_table({"Zero return": frame(y, np.zeros(300))})
+
+    def test_never_trading_strategy_reports_zeros_and_na(self, zero_table):
+        from backtest import NOT_APPLICABLE
+
+        row = zero_table.loc["Zero return"]
+        assert row["Sharpe gross"] == NOT_APPLICABLE
+        assert row["Sharpe net"] == NOT_APPLICABLE
+        assert row["Breakeven cost (bps)"] == NOT_APPLICABLE
+        assert row["Total return net"] == 0.0
+        assert row["Max drawdown"] == 0.0
+        assert row["Ann. turnover"] == 0.0
+
+    def test_no_nan_appears_in_the_table(self, zero_table):
+        assert not zero_table.isna().any().any()
+
+    def test_a_trading_strategy_still_gets_numeric_sharpe(self):
+        rng = np.random.default_rng(4)
+        y = rng.normal(0, 0.02, 300)
+        table = backtest_table({"m": frame(y, rng.normal(0, 0.02, 300))})
+        assert isinstance(table.loc["m", "Sharpe net"], float)

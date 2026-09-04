@@ -224,3 +224,96 @@ def test_a_strategy_is_only_a_finding_if_it_beats_buy_and_hold(result):
 def test_cli_exposes_the_cost_flag():
     parser = main.build_parser()
     assert parser.parse_args(["--cost-bps", "10"]).cost_bps == 10.0
+
+
+# ---------------------------------------------------------------------------
+# One evaluation window for every primary comparison
+# ---------------------------------------------------------------------------
+
+
+class TestSingleEvaluationWindow:
+    def test_window_is_reported_and_non_empty(self, result):
+        output, _ = result
+        window = output["window"]
+        assert window.n > 0
+        assert window.start < window.end
+
+    def test_window_is_the_intersection_including_the_meta(self, result):
+        output, _ = result
+        window = output["window"]
+        meta = output["gating"]["with_vix"]["predictions"]
+        # The meta is the binding constraint: it cannot forecast folds 0-1.
+        assert window.n == len(meta)
+        assert set(window.dates) == set(meta["target_date"])
+
+    def test_base_models_gave_up_the_earliest_folds(self, result):
+        output, _ = result
+        window = output["window"]
+        for name in ("Tree Ensemble", "BiLSTM", "Transformer"):
+            assert window.dropped_by_model[name] > 0
+
+    def test_every_primary_model_covers_exactly_the_window(self, result):
+        output, _ = result
+        window = output["window"]
+        for name, predictions in output["primary_predictions"].items():
+            assert len(predictions) == window.n, name
+            assert set(predictions["target_date"]) == set(window.dates), name
+
+    def test_no_primary_prediction_falls_in_a_dropped_fold(self, result):
+        output, _ = result
+        for name, predictions in output["primary_predictions"].items():
+            assert predictions["fold_id"].min() >= 2, name
+
+    def test_comparison_table_covers_only_window_models(self, result):
+        output, _ = result
+        assert set(output["comparison_df"].index) == set(
+            output["primary_predictions"]
+        )
+
+    def test_dm_tests_run_on_the_window(self, result):
+        output, _ = result
+        dm = output["diebold_mariano"]
+        assert (dm["n shared days"] == output["window"].n).all()
+
+    def test_alignment_is_now_an_exact_merge(self, result):
+        output, _ = result
+        assert len(output["aligned"]) == output["window"].n
+
+    def test_backtest_runs_on_the_window(self, result):
+        output, _ = result
+        economics = output["economics"]
+        assert set(economics.index) == set(output["primary_predictions"]) | {
+            "Buy and hold"
+        }
+
+    def test_calibration_runs_on_the_window(self, result):
+        output, _ = result
+        intervals = output["calibration"]["intervals"]
+        assert set(intervals["target_date"]) <= set(output["window"].dates)
+
+    def test_secondary_table_is_separate_and_labelled(self, result):
+        output, _ = result
+        secondary = output["secondary_comparison_df"]
+        assert secondary is not None
+        # Base models and baselines cover more than the window; the meta does not.
+        assert "Tree Ensemble" in secondary.index
+        assert not any("Hybrid meta" in n for n in secondary.index)
+
+    def test_secondary_is_written_to_its_own_file(self, result):
+        _, workdir = result
+        assert (workdir / "data" / "model_comparison_full_range.csv").exists()
+        assert (workdir / "data" / "model_comparison.csv").exists()
+
+    def test_zero_return_row_is_readable_not_nan(self, result):
+        from backtest import NOT_APPLICABLE
+
+        output, _ = result
+        row = output["economics"].loc["Zero return"]
+        assert row["Sharpe net"] == NOT_APPLICABLE
+        assert row["Total return net"] == 0.0
+        assert row["Max drawdown"] == 0.0
+        assert row["Ann. turnover"] == 0.0
+
+    def test_economics_table_has_no_nan(self, result):
+        output, _ = result
+        assert not output["economics"].isna().any().any()

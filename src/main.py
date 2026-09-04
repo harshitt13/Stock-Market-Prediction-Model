@@ -25,9 +25,13 @@ import pandas as pd
 
 matplotlib.use("Agg")
 
-from backtest import DEFAULT_COST_BPS, backtest_table
+from backtest import DEFAULT_COST_BPS, NOT_APPLICABLE, backtest_table
 from baselines import run_all_baselines
-from contracts import align_predictions
+from contracts import (
+    align_predictions,
+    common_evaluation_window,
+    restrict_all,
+)
 from dataset import Dataset, build_dataset
 from evaluate import compare_evaluations, dm_table, evaluate_predictions, print_evaluation
 from fetch_data import fetch_stock_data
@@ -205,45 +209,67 @@ def run_pipeline(
         print(f"\n  {'-' * 18} BASE WEIGHTS BY VIX TERCILE {'-' * 17}")
         print(terciles.to_string())
 
-        calibration = fold_respecting_intervals(gating["with_vix"]["predictions"])
-        print_calibration_table(calibration)
+        # The interval calibration table is computed further down, on the
+        # common evaluation window, so it covers the same days as every other
+        # primary result.
     except (RuntimeError, ValueError) as exc:
         print(f"  Meta-ensemble skipped: {exc}")
         terciles = None
 
     print("\n[7/7] Evaluating...")
-    evaluations = []
-    all_predictions: Dict[str, pd.DataFrame] = {}
 
-    for key, result in base_results.items():
-        evaluation = evaluate_predictions(
-            result["predictions"], result["model_name"], y_train_by_fold=y_train_by_fold
-        )
-        print_evaluation(evaluation)
-        evaluations.append(evaluation)
-        all_predictions[result["model_name"]] = result["predictions"]
-
+    # Collect every model's full-range predictions first. Nothing is scored
+    # until the common evaluation window is known.
+    all_predictions: Dict[str, pd.DataFrame] = {
+        result["model_name"]: result["predictions"]
+        for result in list(base_results.values()) + list(baseline_results.values())
+    }
     if gating is not None:
         for side in ("with_vix", "without_vix"):
-            evaluations.append(gating["evaluations"][side])
             all_predictions[gating[side]["model_name"]] = gating[side]["predictions"]
-        print_evaluation(gating["evaluations"]["with_vix"])
 
-    for key, result in baseline_results.items():
-        evaluation = evaluate_predictions(
-            result["predictions"], result["model_name"], y_train_by_fold=y_train_by_fold
-        )
-        evaluations.append(evaluation)
-        all_predictions[result["model_name"]] = result["predictions"]
+    window = common_evaluation_window(all_predictions)
+    primary = restrict_all(all_predictions, window)
+
+    print(f"\n  {'-' * 16} COMMON EVALUATION WINDOW {'-' * 16}")
+    print(f"  {window.describe()}")
+    print(
+        "  Every primary comparison below runs on exactly these days. A "
+        "meta-model for\n  fold k is fitted only on folds 0..k-1, so the "
+        "meta-learner cannot forecast the\n  earliest folds. Scoring each "
+        "model over its own range would compare a base\n  model measured "
+        "across those folds against a meta-learner that never saw them."
+    )
+    dropped = {n: d for n, d in window.dropped_by_model.items() if d}
+    if dropped:
+        print("  Days dropped from each model to reach this window:")
+        for name, count in sorted(dropped.items(), key=lambda kv: -kv[1]):
+            print(f"    {name:<26} -{count}")
 
     os.makedirs("data", exist_ok=True)
-    comparison = compare_evaluations(
-        evaluations, save_path="data/model_comparison.csv"
-    )
+
+    base_model_names = {r["model_name"] for r in base_results.values()}
+    evaluations = []
+    for name, predictions in primary.items():
+        evaluation = evaluate_predictions(
+            predictions, name, y_train_by_fold=y_train_by_fold
+        )
+        evaluations.append(evaluation)
+        if name in base_model_names or "+VIX" in name:
+            print_evaluation(evaluation)
+
+    comparison = compare_evaluations(evaluations, save_path="data/model_comparison.csv")
+
+    # Interval calibration, on the same window as everything else.
+    if gating is not None:
+        calibration = fold_respecting_intervals(
+            primary[gating["with_vix"]["model_name"]]
+        )
+        print_calibration_table(calibration)
 
     # Every comparison in the paper needs a DM test against the benchmark.
     reference = baseline_results["zero_return"]["model_name"]
-    dm = dm_table(all_predictions, reference=reference)
+    dm = dm_table(primary, reference=reference)
     if not dm.empty:
         print(f"\n  {'-' * 14} DIEBOLD-MARIANO vs {reference} {'-' * 14}")
         print(dm.to_string())
@@ -253,23 +279,34 @@ def run_pipeline(
         )
         dm.to_csv("data/diebold_mariano.csv")
 
-    aligned = align_predictions(
-        {name: df for name, df in all_predictions.items()}, require_identical=False
-    )
+    # Identical date sets now, so this is an exact merge with an assertion.
+    aligned = align_predictions(primary, require_identical=True)
     aligned.to_csv("data/aligned_predictions.csv", index=False)
 
-    # Section 8: directional accuracy does not pay for lunch.
-    economics = backtest_table(all_predictions, cost_bps=cost_bps)
+    # Section 8: directional accuracy does not pay for lunch. Buy-and-hold is
+    # computed on the window, not on whichever model came first in the dict.
+    economics = backtest_table(
+        primary, cost_bps=cost_bps, benchmark_predictions=primary[reference]
+    )
     print()
     print(f"  {'-' * 12} ECONOMICS (long/flat, {cost_bps:.1f} bps round-trip) "
           f"{'-' * 12}")
+    print(f"  All rows and buy-and-hold on the common window: {window.describe()}")
     print(economics.to_string())
+    print(
+        f"  '{NOT_APPLICABLE}' marks a strategy that never takes a position, so "
+        "its Sharpe is 0/0 rather than bad."
+    )
     if not economics.drop(index="Buy and hold")["Beats B&H net"].any():
         print(
             "\n  No model beats buy-and-hold after costs. Stated plainly: that "
             "is a publishable finding, and reviewers respect it."
         )
     economics.to_csv("data/backtest.csv")
+
+    # Secondary. Models covering more than the window, over their own full
+    # range. Clearly labelled, never mixed into the primary table.
+    secondary = _full_range_table(all_predictions, window, y_train_by_fold)
 
     demo = _collect_demo_forecasts(base_results, gating, calibration)
     if demo is not None:
@@ -298,7 +335,40 @@ def run_pipeline(
         "diebold_mariano": dm,
         "aligned": aligned,
         "economics": economics,
+        "window": window,
+        "primary_predictions": primary,
+        "secondary_comparison_df": secondary,
     }
+
+
+def _full_range_table(all_predictions, window, y_train_by_fold):
+    """SECONDARY table: models that cover more days than the common window.
+
+    Reported for completeness only. These rows are NOT comparable with each
+    other or with the primary table, because each covers a different set of
+    days -- which is exactly the problem the common window exists to remove.
+    """
+    wider = {
+        name: df
+        for name, df in all_predictions.items()
+        if len(df) > window.n
+    }
+    if not wider:
+        return None
+
+    evaluations = [
+        evaluate_predictions(df, name, y_train_by_fold=y_train_by_fold)
+        for name, df in wider.items()
+    ]
+    table = compare_evaluations(
+        evaluations, save_path="data/model_comparison_full_range.csv"
+    )
+    print(
+        "  SECONDARY, full range per model. Rows above cover different day "
+        "sets from\n  each other and from the primary table; they are not "
+        "comparable. Primary\n  results are the common-window table only."
+    )
+    return table
 
 
 def _collect_demo_forecasts(base_results, gating, calibration) -> Optional[pd.DataFrame]:
