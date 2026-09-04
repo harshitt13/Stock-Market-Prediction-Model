@@ -19,6 +19,7 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 import pandas as pd
+from scipy import stats
 
 from contracts import validate_predictions
 
@@ -27,6 +28,8 @@ from contracts import validate_predictions
 DEFAULT_COST_BPS = 7.5
 
 TRADING_DAYS = 252
+
+BPS = 1e4
 
 LONG_FLAT = "long_flat"
 LONG_SHORT = "long_short"
@@ -112,6 +115,105 @@ def breakeven_cost_bps(
     return float(2e4 * np.mean(gross_returns) / mean_turnover)
 
 
+def market_adjusted(
+    strategy_returns, market_returns, periods_per_year: int = TRADING_DAYS
+) -> Dict[str, float]:
+    """OLS of a strategy's returns on the market's: ``r_s = a + b*r_m + e``.
+
+    A long/flat strategy driven by a near-constant forecast is long almost
+    every day, so it inherits the market's Sharpe ratio wholesale. Raw Sharpe
+    cannot tell that apart from skill; alpha and beta can. Beta near 1 with
+    alpha near 0 means the strategy *is* the market.
+
+    The t-statistic uses plain OLS standard errors. Daily strategy residuals
+    carry little serial correlation, but this is not a HAC estimator and the
+    t-stat should be read as indicative rather than exact.
+    """
+    y = np.asarray(strategy_returns, dtype=float)
+    x = np.asarray(market_returns, dtype=float)
+    n = len(y)
+
+    empty = {
+        "alpha_daily": float("nan"),
+        "alpha_annualised": float("nan"),
+        "beta": float("nan"),
+        "t_alpha": float("nan"),
+        "p_alpha": float("nan"),
+        "r_squared": float("nan"),
+    }
+    if n < 3 or np.std(x) == 0:
+        return empty
+
+    design = np.column_stack([np.ones(n), x])
+    coefficients, *_ = np.linalg.lstsq(design, y, rcond=None)
+    alpha, beta = float(coefficients[0]), float(coefficients[1])
+
+    residuals = y - design @ coefficients
+    dof = n - 2
+    sigma2 = float(residuals @ residuals) / dof
+    if sigma2 <= 0:
+        # A strategy that replicates the market exactly, or never trades.
+        return {**empty, "alpha_daily": alpha, "beta": beta,
+                "alpha_annualised": alpha * periods_per_year}
+
+    standard_errors = np.sqrt(np.diag(np.linalg.inv(design.T @ design)) * sigma2)
+    t_alpha = alpha / standard_errors[0]
+    total_variance = float(np.var(y))
+
+    return {
+        "alpha_daily": alpha,
+        "alpha_annualised": alpha * periods_per_year,
+        "beta": beta,
+        "t_alpha": float(t_alpha),
+        "p_alpha": float(2 * stats.t.sf(abs(t_alpha), dof)),
+        "r_squared": (
+            1.0 - float(np.var(residuals)) / total_variance
+            if total_variance > 0 else float("nan")
+        ),
+    }
+
+
+def prediction_diagnostics(predictions: pd.DataFrame) -> Dict[str, float]:
+    """Is the model actually varying its forecast, or emitting a constant?
+
+    A model whose predicted returns have far less dispersion than the realised
+    ones is not forecasting; it is picking a level. Combined with a long/flat
+    rule that turns any positive number into a full position, that produces a
+    near-constant long book whose Sharpe is the market's.
+    """
+    y_pred = predictions["y_pred"].to_numpy(float)
+    y_true = predictions["y_true"].to_numpy(float)
+    signs = y_pred > 0
+
+    std_pred = float(np.std(y_pred, ddof=1)) if len(y_pred) > 1 else 0.0
+    std_true = float(np.std(y_true, ddof=1)) if len(y_true) > 1 else float("nan")
+
+    if std_pred > 0 and std_true > 0:
+        correlation = float(np.corrcoef(y_pred, y_true)[0, 1])
+        dof = len(y_pred) - 2
+        if dof > 0 and abs(correlation) < 1.0:
+            t = correlation * np.sqrt(dof / (1.0 - correlation**2))
+            p_value = float(2 * stats.t.sf(abs(t), dof))
+        else:
+            p_value = float("nan")
+    else:
+        correlation, p_value = float("nan"), float("nan")
+
+    return {
+        "n": len(y_pred),
+        "mean_pred_bps": float(np.mean(y_pred)) * BPS,
+        "std_pred_bps": std_pred * BPS,
+        "std_true_bps": std_true * BPS,
+        "std_ratio": std_pred / std_true if std_true else float("nan"),
+        "frac_positive": float(signs.mean()),
+        "sign_flip_rate": (
+            float(np.mean(signs[1:] != signs[:-1])) if len(signs) > 1 else 0.0
+        ),
+        "corr_pred_true": correlation,
+        "corr_p_value": p_value,
+    }
+
+
 def backtest(
     predictions: pd.DataFrame,
     mode: str = LONG_FLAT,
@@ -155,6 +257,12 @@ def backtest(
         "buy_and_hold": hold,
         "breakeven_cost_bps": breakeven_cost_bps(gross_returns, turnover),
         "beats_buy_and_hold_net": bool(net["sharpe"] > hold["sharpe"]),
+        # Fraction of days holding the asset. A long/flat rule turns any
+        # positive forecast into a full position, so this is usually the
+        # single most informative number about what the strategy is doing.
+        "average_exposure": float(np.mean(positions)),
+        "market_adjusted": market_adjusted(net_returns, asset_returns, periods_per_year),
+        "predictions_diagnostics": prediction_diagnostics(predictions),
         "daily": pd.DataFrame(
             {
                 "target_date": predictions["target_date"],
@@ -173,6 +281,15 @@ def backtest(
 #: bad. The zero-return baseline is the case that matters: predicting no move
 #: every day gives nothing to trade on.
 NOT_APPLICABLE = "n/a"
+
+#: Below this annualised turnover the break-even cost divides by ~zero and the
+#: result is a meaningless six-figure number. A strategy that barely trades has
+#: no meaningful cost threshold.
+MIN_TURNOVER_FOR_BREAKEVEN = 5.0
+
+
+def _round(value, digits):
+    return NOT_APPLICABLE if not np.isfinite(value) else round(float(value), digits)
 
 
 def _sharpe_cell(value: float):
@@ -221,19 +338,28 @@ def backtest_table(
     rows = []
     for name, predictions in frames.items():
         result = backtest(predictions, mode=mode, cost_bps=cost_bps)
-        never_trades = result["net"]["annualised_turnover"] <= 0.0
+        turnover = result["net"]["annualised_turnover"]
+        adjusted = result["market_adjusted"]
         rows.append(
             {
                 "Model": name,
+                # PRIMARY: market-adjusted. Raw Sharpe cannot separate skill
+                # from being long the market every day.
+                "Alpha ann.": _round(adjusted["alpha_annualised"], 4),
+                "t(alpha)": _round(adjusted["t_alpha"], 2),
+                "Beta": _round(adjusted["beta"], 3),
+                "Exposure": _round(result["average_exposure"], 3),
+                # SECONDARY: raw risk/return.
                 "Sharpe gross": _sharpe_cell(result["gross"]["sharpe"]),
                 "Sharpe net": _sharpe_cell(result["net"]["sharpe"]),
                 "Ann. return net": round(result["net"]["annualised_return"], 4),
                 "Total return net": round(result["net"]["total_return"], 4),
                 "Max drawdown": round(result["net"]["max_drawdown"], 4),
-                "Ann. turnover": round(result["net"]["annualised_turnover"], 1),
+                "Ann. turnover": round(turnover, 1),
                 "Breakeven cost (bps)": (
                     NOT_APPLICABLE
-                    if never_trades or not np.isfinite(result["breakeven_cost_bps"])
+                    if turnover < MIN_TURNOVER_FOR_BREAKEVEN
+                    or not np.isfinite(result["breakeven_cost_bps"])
                     else round(result["breakeven_cost_bps"], 1)
                 ),
                 "Beats B&H net": result["beats_buy_and_hold_net"],
@@ -248,6 +374,10 @@ def backtest_table(
     )
     hold = backtest(benchmark, mode=mode, cost_bps=cost_bps)["buy_and_hold"]
     table.loc["Buy and hold"] = {
+        "Alpha ann.": 0.0,   # the benchmark has no alpha against itself
+        "t(alpha)": NOT_APPLICABLE,
+        "Beta": 1.0,
+        "Exposure": 1.0,
         "Sharpe gross": _sharpe_cell(hold["sharpe"]),
         "Sharpe net": _sharpe_cell(hold["sharpe"]),
         "Ann. return net": round(hold["annualised_return"], 4),
