@@ -7,32 +7,35 @@ import os
 import numpy as np
 import pandas as pd
 import joblib
+from fetch_data import engineer_features
 from tree_model import train_tree_model
 
 
 class TestTrainTreeModel(unittest.TestCase):
     def setUp(self):
-        # Create a sample DataFrame with enough data for walk-forward
+        # Build the frame the way the pipeline does, so the columns here match
+        # what engineer_features re-emits during recursive forecasting.
+        # Over-generate to absorb the ~50-row rolling warm-up.
         np.random.seed(42)
         n = 200
-        dates = pd.date_range(start="2023-01-01", periods=n, freq="B")
-        close = np.cumsum(np.random.randn(n)) + 150
+        raw_n = n + 60
+        dates = pd.date_range(start="2023-01-01", periods=raw_n, freq="B")
+        close = np.cumsum(np.random.randn(raw_n)) + 150
 
-        self.test_data = pd.DataFrame(
+        raw = pd.DataFrame(
             {
                 "Date": dates,
+                "Open": close + np.random.randn(raw_n) * 0.5,
+                "High": close + np.abs(np.random.randn(raw_n)),
+                "Low": close - np.abs(np.random.randn(raw_n)),
                 "Close": close,
-                "High": close + np.abs(np.random.randn(n)),
-                "Low": close - np.abs(np.random.randn(n)),
-                "Open": close + np.random.randn(n) * 0.5,
-                "Volume": np.random.randint(500000, 2000000, n),
-                "SMA_20": pd.Series(close).rolling(20).mean().bfill(),
-                "SMA_50": pd.Series(close).rolling(50).mean().bfill(),
-                "RSI_14": 50 + np.random.randn(n) * 10,
-                "Log_Return": np.random.randn(n) * 0.01,
-                "DayOfWeek": dates.dayofweek,
+                "Volume": np.random.randint(500000, 2000000, raw_n),
             }
         )
+        self.test_data = (
+            engineer_features(raw).dropna().reset_index(drop=True).iloc[:n].copy()
+        )
+        self.assertEqual(len(self.test_data), n)
 
         self.model_dir = "models"
         self.data_dir = "data"

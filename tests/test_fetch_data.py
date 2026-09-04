@@ -1,53 +1,131 @@
-import unittest
-import os
-import pandas as pd
+"""Tests for the data layer.
+
+Offline by construction: ``yfinance`` is stubbed with the recorded fixture, so
+nothing here touches the network or the repository's ``data/`` directory.
+"""
+
+from pathlib import Path
+
 import numpy as np
-from fetch_data import fetch_stock_data, save_to_csv
+import pandas as pd
+import pytest
 
-class TestFetchStockData(unittest.TestCase):
-    def setUp(self):
-        self.ticker_symbol = 'AAPL'
-        self.start_date = '2023-01-01'
-        self.end_date = '2024-01-01'
-        self.data_dir = 'data'
-        self.filepath = os.path.join(self.data_dir, "stock_data.csv")
+import fetch_data
+from fetch_data import (
+    BASE_FEATURE_COLUMNS,
+    FEATURE_COLUMNS,
+    LEGACY_LEVEL_COLUMNS,
+    RAW_COLUMNS,
+    available_feature_columns,
+    engineer_features,
+    fetch_stock_data,
+    save_to_csv,
+)
 
-        if not os.path.exists(self.data_dir):
-            os.makedirs(self.data_dir)
+FIXTURE_PATH = Path(__file__).parent / "fixtures" / "aapl_raw.csv"
 
-    def tearDown(self):
-        if os.path.exists(self.filepath):
-            os.remove(self.filepath)
 
-    def test_fetch_stock_data_valid(self):
-        result_df = fetch_stock_data(self.ticker_symbol, self.start_date, self.end_date)
-        self.assertIsInstance(result_df, pd.DataFrame, "Result should be a DataFrame.")
-        self.assertTrue(os.path.exists(self.filepath), "CSV file should be saved.")
-        self.assertFalse(result_df.empty, "DataFrame should not be empty.")
-        
-        # Verify core columns exist
-        expected_columns = ['Date', 'Close', 'High', 'Low', 'Open', 'Volume', 'MACD', 'RSI_14', 'BB_Upper']
-        actual_columns = result_df.columns.tolist()
-        for col in expected_columns:
-            self.assertIn(col, actual_columns, f"Column '{col}' should exist in the DataFrame.")
+def load_fixture() -> pd.DataFrame:
+    """Raw AAPL OHLCV plus macro levels. No network access."""
+    return pd.read_csv(FIXTURE_PATH, parse_dates=["Date"])
 
-    def test_save_to_csv(self):
-        data = {
-            'Date': ['2024-01-01', '2024-01-02'],
-            'Close': [150.0, 152.5],
-            'Volume': [1000000, 1200000],
+
+class _FakeTicker:
+    """Serves the recorded fixture in the shape ``yf.Ticker`` returns."""
+
+    def __init__(self, symbol):
+        self.symbol = symbol
+
+    def history(self, start=None, end=None):
+        raw = load_fixture()
+        index = pd.DatetimeIndex(raw["Date"]).tz_localize("America/New_York")
+        index.name = "Date"
+
+        if self.symbol in fetch_data.MACRO_SYMBOLS:
+            name = fetch_data.MACRO_SYMBOLS[self.symbol]
+            return pd.DataFrame({"Close": raw[name].to_numpy()}, index=index)
+
+        frame = raw[["Open", "High", "Low", "Close", "Volume"]].copy()
+        frame.index = index
+        frame["Dividends"] = 0.0
+        frame["Stock Splits"] = 0.0
+        return frame
+
+
+class _EmptyTicker(_FakeTicker):
+    def history(self, start=None, end=None):
+        return pd.DataFrame()
+
+
+@pytest.fixture
+def offline(monkeypatch, tmp_path):
+    """Stub yfinance and keep any CSV writes inside tmp_path."""
+    monkeypatch.setattr(fetch_data.yf, "Ticker", _FakeTicker)
+    monkeypatch.chdir(tmp_path)
+    return tmp_path
+
+
+def test_fetch_stock_data_returns_features_and_saves_csv(offline):
+    df = fetch_stock_data("AAPL", "2018-01-01", "2022-01-01")
+
+    assert isinstance(df, pd.DataFrame)
+    assert not df.empty
+    assert (offline / "data" / "stock_data.csv").exists()
+
+    assert not df.columns.duplicated().any()
+    assert set(df.columns) == set(RAW_COLUMNS) | set(FEATURE_COLUMNS)
+    assert not df.isna().any().any(), "warm-up rows should have been dropped"
+    assert df["Date"].is_monotonic_increasing
+    assert df["Date"].dt.tz is None
+
+
+def test_fetch_stock_data_invalid_ticker(offline, monkeypatch):
+    monkeypatch.setattr(fetch_data.yf, "Ticker", _EmptyTicker)
+    assert fetch_stock_data("INVALID_TICKER_XYZ", "2018-01-01", "2022-01-01") is None
+
+
+def test_save_to_csv(offline):
+    sample_df = pd.DataFrame(
+        {
+            "Date": ["2024-01-01", "2024-01-02"],
+            "Close": [150.0, 152.5],
+            "Volume": [1000000, 1200000],
         }
-        sample_df = pd.DataFrame(data)
-        save_to_csv(sample_df)
+    )
+    save_to_csv(sample_df)
 
-        self.assertTrue(os.path.exists(self.filepath), "CSV file should be saved.")
-        saved_df = pd.read_csv(self.filepath)
-        pd.testing.assert_frame_equal(sample_df, saved_df, check_dtype=False)
+    saved_df = pd.read_csv(offline / "data" / "stock_data.csv")
+    pd.testing.assert_frame_equal(sample_df, saved_df, check_dtype=False)
 
-    def test_fetch_stock_data_invalid_ticker(self):
-        invalid_ticker = 'INVALID_TICKER_XYZ'
-        result_df = fetch_stock_data(invalid_ticker, self.start_date, self.end_date)
-        self.assertIsNone(result_df, "Result should be None for an invalid ticker.")
 
-if __name__ == '__main__':
-    unittest.main()
+def test_fetch_stock_data_is_defined_once():
+    """It used to be defined twice, the first shadowed and silently dead."""
+    text = Path(fetch_data.__file__).read_text(encoding="utf-8")
+    assert text.count("def fetch_stock_data(") == 1
+
+
+def test_engineered_frame_drops_non_stationary_levels():
+    engineered = engineer_features(load_fixture())
+    for col in LEGACY_LEVEL_COLUMNS:
+        assert col not in engineered.columns
+
+
+def test_engineer_features_survives_missing_macro_columns():
+    ohlcv_only = load_fixture()[["Date", "Open", "High", "Low", "Close", "Volume"]]
+    engineered = engineer_features(ohlcv_only)
+
+    assert available_feature_columns(engineered) == BASE_FEATURE_COLUMNS
+
+
+def test_macro_gaps_are_forward_filled_never_backward_filled():
+    raw = load_fixture()
+    gap = range(300, 305)
+    last_known = raw["VIX"].iloc[299]
+    first_after_gap = raw["VIX"].iloc[305]
+    raw.loc[raw.index[gap], "VIX"] = np.nan
+
+    engineered = engineer_features(raw)
+
+    assert (engineered["VIX"].iloc[gap] == last_known).all()
+    # A bfill would have used the first post-gap observation instead.
+    assert engineered["VIX"].iloc[300] != first_after_gap
