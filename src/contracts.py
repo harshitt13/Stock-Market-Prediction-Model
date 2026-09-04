@@ -15,6 +15,8 @@ number in a results table, not as a crash.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 import pandas as pd
 
@@ -115,6 +117,118 @@ def empty_predictions() -> pd.DataFrame:
             "y_pred": pd.Series([], dtype="float64"),
         }
     )
+
+
+@dataclass(frozen=True)
+class EvaluationWindow:
+    """The set of forecast days every model has in common.
+
+    Fold-respecting stacking forbids the meta-learner from forecasting the
+    earliest folds, so it covers fewer days than the base models. Scoring each
+    model over its own range compares a model measured across a volatile
+    stretch against one that never saw it -- on the AAPL fixture the excluded
+    folds are the 2020 crash, which is exactly the period that would flatter or
+    punish a model most. Every primary comparison runs on this window instead.
+    """
+
+    dates: np.ndarray
+    dropped_by_model: dict
+    reference_model: str
+
+    @property
+    def n(self) -> int:
+        return len(self.dates)
+
+    @property
+    def start(self) -> pd.Timestamp:
+        return pd.Timestamp(self.dates[0])
+
+    @property
+    def end(self) -> pd.Timestamp:
+        return pd.Timestamp(self.dates[-1])
+
+    def describe(self) -> str:
+        return (
+            f"{self.n} forecast days, "
+            f"{self.start:%Y-%m-%d} to {self.end:%Y-%m-%d}"
+        )
+
+
+def _prediction_frames(results_by_model: dict) -> dict:
+    frames = {}
+    for name, item in results_by_model.items():
+        df = item["predictions"] if isinstance(item, dict) else item
+        validate_predictions(df, name=name)
+        frames[name] = df
+    return frames
+
+
+def common_evaluation_window(
+    results_by_model: dict, require_contiguous: bool = True
+) -> EvaluationWindow:
+    """Intersect ``target_date`` across every model, including the meta.
+
+    Raises if the intersection is empty, or (by default) if it is not a
+    contiguous run of trading days within the longest-covering model. A hole in
+    the middle would mean some model is missing days the others have, which is
+    a bug rather than a windowing decision.
+    """
+    frames = _prediction_frames(results_by_model)
+    if not frames:
+        raise ValueError("no models to window")
+
+    date_sets = {name: set(df["target_date"]) for name, df in frames.items()}
+    shared = set.intersection(*date_sets.values())
+    if not shared:
+        raise ContractViolation(
+            "models share no forecast days at all; a common evaluation window "
+            "does not exist. Check that every model ran on the same folds."
+        )
+
+    reference_model = max(frames, key=lambda n: len(frames[n]))
+    reference_dates = frames[reference_model]["target_date"].to_numpy()
+    ordered = np.sort(np.array(sorted(shared), dtype="datetime64[ns]"))
+
+    if require_contiguous:
+        positions = np.flatnonzero(np.isin(reference_dates, ordered))
+        span = positions[-1] - positions[0] + 1
+        if span != len(positions):
+            missing = span - len(positions)
+            raise ContractViolation(
+                f"the shared window is not contiguous: {missing} day(s) inside "
+                f"{pd.Timestamp(ordered[0]):%Y-%m-%d}.."
+                f"{pd.Timestamp(ordered[-1]):%Y-%m-%d} are missing from at "
+                "least one model. That is a bug, not a windowing choice."
+            )
+
+    return EvaluationWindow(
+        dates=ordered,
+        dropped_by_model={n: len(df) - len(shared) for n, df in frames.items()},
+        reference_model=reference_model,
+    )
+
+
+def restrict_to_window(
+    predictions: pd.DataFrame, window: EvaluationWindow, name: str = "predictions"
+) -> pd.DataFrame:
+    """Cut a result frame down to the common window, revalidating after."""
+    df = predictions[predictions["target_date"].isin(window.dates)]
+    df = df.sort_values("target_date").reset_index(drop=True)
+    if len(df) != window.n:
+        _fail(
+            name,
+            f"has {len(df)} of the window's {window.n} days; it does not cover "
+            "the common evaluation window",
+        )
+    return validate_predictions(df, name=name)
+
+
+def restrict_all(results_by_model: dict, window: EvaluationWindow) -> dict:
+    """Every model, cut to the common window. Keys preserved."""
+    return {
+        name: restrict_to_window(df, window, name)
+        for name, df in _prediction_frames(results_by_model).items()
+    }
 
 
 def align_predictions(

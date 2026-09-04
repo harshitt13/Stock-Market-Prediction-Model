@@ -168,43 +168,95 @@ def backtest(
     }
 
 
+#: Shown instead of NaN for a strategy that never takes a position. Its return
+#: series is identically zero, so the Sharpe ratio is 0/0 -- undefined, not
+#: bad. The zero-return baseline is the case that matters: predicting no move
+#: every day gives nothing to trade on.
+NOT_APPLICABLE = "n/a"
+
+
+def _sharpe_cell(value: float):
+    return NOT_APPLICABLE if not np.isfinite(value) else round(value, 3)
+
+
 def backtest_table(
     results_by_model: Dict[str, pd.DataFrame],
     mode: str = LONG_FLAT,
     cost_bps: float = DEFAULT_COST_BPS,
+    benchmark_predictions: Optional[pd.DataFrame] = None,
+    require_identical_days: bool = True,
 ) -> pd.DataFrame:
-    """Backtest every model on the same days and tabulate."""
+    """Backtest every model and tabulate, with buy-and-hold on the same days.
+
+    ``require_identical_days`` asserts every model covers exactly the same
+    forecast days. Without it the comparison silently crosses evaluation
+    windows: buy-and-hold used to be measured on whichever model happened to be
+    first in the dict, which on a walk-forward run meant the base models' full
+    range while the meta-learner covered only the later folds.
+
+    ``benchmark_predictions`` names the frame buy-and-hold is computed from.
+    When every model shares the same days it makes no difference which is used
+    -- they all carry the same realised returns -- but passing it explicitly
+    documents the intent.
+    """
+    frames = {
+        name: (item["predictions"] if isinstance(item, dict) else item)
+        for name, item in results_by_model.items()
+    }
+    if not frames:
+        return pd.DataFrame()
+
+    date_sets = {name: set(df["target_date"]) for name, df in frames.items()}
+    reference_name, reference_dates = next(iter(date_sets.items()))
+    if require_identical_days:
+        for name, dates in date_sets.items():
+            if dates != reference_dates:
+                raise ValueError(
+                    f"{name!r} covers {len(dates)} days but {reference_name!r} "
+                    f"covers {len(reference_dates)}. Backtesting them in one "
+                    "table would compare different evaluation windows. Restrict "
+                    "to a common window first (contracts.restrict_all)."
+                )
+
     rows = []
-    for name, item in results_by_model.items():
-        predictions = item["predictions"] if isinstance(item, dict) else item
+    for name, predictions in frames.items():
         result = backtest(predictions, mode=mode, cost_bps=cost_bps)
+        never_trades = result["net"]["annualised_turnover"] <= 0.0
         rows.append(
             {
                 "Model": name,
-                "Sharpe gross": round(result["gross"]["sharpe"], 3),
-                "Sharpe net": round(result["net"]["sharpe"], 3),
+                "Sharpe gross": _sharpe_cell(result["gross"]["sharpe"]),
+                "Sharpe net": _sharpe_cell(result["net"]["sharpe"]),
                 "Ann. return net": round(result["net"]["annualised_return"], 4),
+                "Total return net": round(result["net"]["total_return"], 4),
                 "Max drawdown": round(result["net"]["max_drawdown"], 4),
                 "Ann. turnover": round(result["net"]["annualised_turnover"], 1),
-                "Breakeven cost (bps)": round(result["breakeven_cost_bps"], 1),
+                "Breakeven cost (bps)": (
+                    NOT_APPLICABLE
+                    if never_trades or not np.isfinite(result["breakeven_cost_bps"])
+                    else round(result["breakeven_cost_bps"], 1)
+                ),
                 "Beats B&H net": result["beats_buy_and_hold_net"],
             }
         )
 
     table = pd.DataFrame(rows).set_index("Model")
-    if rows:
-        first = next(iter(results_by_model.values()))
-        predictions = first["predictions"] if isinstance(first, dict) else first
-        hold = backtest(predictions, mode=mode, cost_bps=cost_bps)["buy_and_hold"]
-        table.loc["Buy and hold"] = {
-            "Sharpe gross": round(hold["sharpe"], 3),
-            "Sharpe net": round(hold["sharpe"], 3),
-            "Ann. return net": round(hold["annualised_return"], 4),
-            "Max drawdown": round(hold["max_drawdown"], 4),
-            "Ann. turnover": 0.0,
-            "Breakeven cost (bps)": float("nan"),
-            "Beats B&H net": True,
-        }
+
+    benchmark = (
+        benchmark_predictions if benchmark_predictions is not None
+        else frames[reference_name]
+    )
+    hold = backtest(benchmark, mode=mode, cost_bps=cost_bps)["buy_and_hold"]
+    table.loc["Buy and hold"] = {
+        "Sharpe gross": _sharpe_cell(hold["sharpe"]),
+        "Sharpe net": _sharpe_cell(hold["sharpe"]),
+        "Ann. return net": round(hold["annualised_return"], 4),
+        "Total return net": round(hold["total_return"], 4),
+        "Max drawdown": round(hold["max_drawdown"], 4),
+        "Ann. turnover": 0.0,
+        "Breakeven cost (bps)": NOT_APPLICABLE,
+        "Beats B&H net": True,
+    }
     return table
 
 
