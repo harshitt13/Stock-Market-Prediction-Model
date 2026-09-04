@@ -1,29 +1,41 @@
-"""
-XGBoost + Random Forest tree ensemble for next-day close price prediction.
+"""XGBoost + Random Forest ensemble, forecasting next-day log return.
 
-Refactored to support walk-forward validation via external fold indices.
+Ported to the contract in REFACTOR_PLAN.md section 1: consumes a
+:class:`~dataset.Dataset`, predicts ``y`` directly, and returns predictions
+keyed by ``target_date``.
+
+There is no scaler here any more. Trees split on rank, so standardising the
+inputs changes nothing about the fitted model; the old StandardScaler was pure
+ceremony. What did matter was the old target: next-day *Close*, against a
+feature matrix that included today's Close. That is the identity function with
+extra steps, and it is what produced the previous R2 of 0.975.
 """
 
-import pandas as pd
+from __future__ import annotations
+
+import os
+from typing import Any, Dict, List, Optional, Tuple
+
+import joblib
 import numpy as np
-from sklearn.preprocessing import StandardScaler
+import pandas as pd
 from sklearn.ensemble import RandomForestRegressor, VotingRegressor
 from xgboost import XGBRegressor
-import joblib
-import os
-from typing import Dict, Any, List, Tuple, Optional
 
-from evaluate import compute_metrics, print_metrics
+from dataset import Dataset
+from model_utils import (
+    assemble_predictions,
+    default_folds,
+    fold_predictions,
+    recursive_demo_forecast,
+)
+
+MODEL_NAME = "Tree Ensemble"
+MODEL_PATH = "models/tree_ensemble_model.pkl"
 
 
-def get_feature_columns(df: pd.DataFrame) -> List[str]:
-    """Return the list of feature columns available in the DataFrame."""
-    exclude = {"Date", "Target_Close"}
-    return [c for c in df.columns if c not in exclude]
-
-
-def _build_tree_ensemble() -> VotingRegressor:
-    """Build the XGBoost + RF VotingRegressor (deterministic config)."""
+def _build_tree_ensemble(random_state: int = 42) -> VotingRegressor:
+    """XGBoost + RF VotingRegressor (deterministic given the seed)."""
     xgb = XGBRegressor(
         n_estimators=500,
         max_depth=6,
@@ -32,7 +44,7 @@ def _build_tree_ensemble() -> VotingRegressor:
         colsample_bytree=0.8,
         reg_alpha=0.1,
         reg_lambda=1.0,
-        random_state=42,
+        random_state=random_state,
         verbosity=0,
     )
     rf = RandomForestRegressor(
@@ -41,194 +53,126 @@ def _build_tree_ensemble() -> VotingRegressor:
         min_samples_split=5,
         min_samples_leaf=3,
         max_features="sqrt",
-        random_state=42,
+        random_state=random_state,
         n_jobs=-1,
     )
     return VotingRegressor(estimators=[("xgb", xgb), ("rf", rf)])
 
 
 def train_tree_on_fold(
-    X: np.ndarray,
-    y: np.ndarray,
-    dates: np.ndarray,
+    dataset: Dataset,
     train_idx: np.ndarray,
     test_idx: np.ndarray,
-    features: List[str],
+    fold_id: int,
+    random_state: int = 42,
 ) -> Dict[str, Any]:
-    """
-    Train tree ensemble on a single walk-forward fold.
-
-    Parameters
-    ----------
-    X : 2D array (n_samples, n_features)
-    y : 1D array (n_samples,) - target (next-day close).
-    dates : 1D array of dates.
-    train_idx, test_idx : fold index arrays.
-    features : list of feature names (for importance mapping).
-
-    Returns
-    -------
-    dict with model, scaler, y_true, y_pred, test_dates, feature_importances, metrics.
-    """
-    X_train, X_test = X[train_idx], X[test_idx]
-    y_train, y_test = y[train_idx], y[test_idx]
-    test_dates = dates[test_idx]
-
-    scaler = StandardScaler()
-    X_train_sc = scaler.fit_transform(X_train)
-    X_test_sc = scaler.transform(X_test)
-
-    model = _build_tree_ensemble()
-    model.fit(X_train_sc, y_train)
-
-    y_pred = model.predict(X_test_sc)
-
-    # Feature importance from XGBoost sub-estimator
-    xgb_model = model.named_estimators_["xgb"]
-    feat_imp = xgb_model.feature_importances_
-
-    metrics = compute_metrics(y_test, y_pred, model_name="Tree Ensemble")
+    """Fit on one fold's training rows, predict its test rows."""
+    model = _build_tree_ensemble(random_state)
+    model.fit(dataset.X[train_idx], dataset.y[train_idx])
+    y_pred = model.predict(dataset.X[test_idx])
 
     return {
         "model": model,
-        "scaler": scaler,
-        "features": features,
-        "y_true": y_test,
-        "y_pred": y_pred,
-        "test_dates": test_dates,
-        "feature_importances": feat_imp,
-        "metrics": metrics,
+        "fold_id": fold_id,
+        "predictions": fold_predictions(dataset, fold_id, test_idx, y_pred),
+        "feature_importances": model.named_estimators_["xgb"].feature_importances_,
     }
 
 
 def train_tree_model(
-    data: pd.DataFrame,
-    future_days: int = 30,
+    dataset: Dataset,
     fold_indices: Optional[List[Tuple[np.ndarray, np.ndarray]]] = None,
+    random_state: int = 42,
+    save_model: bool = True,
+    demo_forecast_days: int = 0,
+    demo_history: Optional[pd.DataFrame] = None,
 ) -> Dict[str, Any]:
-    """
-    Train the tree ensemble with walk-forward validation.
+    """Walk-forward training of the tree ensemble on log returns.
 
     Parameters
     ----------
-    data : pd.DataFrame
-        Full stock data with engineered features.
-    future_days : int
-        Number of future days to forecast.
-    fold_indices : list of (train_idx, test_idx), optional
-        If provided, uses these walk-forward folds.
-        If None, falls back to a single 80/20 chronological split.
+    dataset
+        Output of :func:`dataset.build_dataset`. The target is already defined;
+        this function does not construct one.
+    fold_indices
+        ``(train_idx, test_idx)`` pairs indexing dataset rows. Test folds must
+        not overlap, or the resulting frame will have duplicate target_dates
+        and fail validation.
+    demo_forecast_days
+        If > 0, also produce a recursive multi-step forecast. Illustrative
+        only; see ``model_utils.DEMO_FORECAST_CAVEAT``.
 
     Returns
     -------
-    dict with aggregated results across folds + future predictions.
+    dict with ``predictions`` (the standard result frame), the last fold's
+    model, and per-fold feature importances.
     """
-    from walk_forward import aggregate_fold_results
-
-    df = data.copy()
-
-    # Target: next day's Close
-    df["Target_Close"] = df["Close"].shift(-1)
-    df.dropna(subset=["Target_Close"], inplace=True)
-
-    features = get_feature_columns(df)
-    X = df[features].values
-    y = df["Target_Close"].values
-    dates = pd.to_datetime(df["Date"]).values
-
-    # --- Walk-forward or single split ---
+    n = len(dataset)
     if fold_indices is None:
-        # Fallback: single 80/20 split
-        train_size = int(len(X) * 0.8)
-        fold_indices = [(np.arange(0, train_size), np.arange(train_size, len(X)))]
+        fold_indices = default_folds(n)
 
-    fold_results = []
+    fold_frames: List[pd.DataFrame] = []
+    importances: List[np.ndarray] = []
     last_model = None
-    last_scaler = None
-    last_feat_imp = None
 
-    for i, (train_idx, test_idx) in enumerate(fold_indices):
-        # Clip indices to valid range (target shifted by -1 removes last row)
-        train_idx = train_idx[train_idx < len(X)]
-        test_idx = test_idx[test_idx < len(X)]
-        if len(test_idx) == 0:
+    for fold_id, (train_idx, test_idx) in enumerate(fold_indices):
+        train_idx = np.asarray(train_idx)[np.asarray(train_idx) < n]
+        test_idx = np.asarray(test_idx)[np.asarray(test_idx) < n]
+        if len(train_idx) == 0 or len(test_idx) == 0:
+            print(f"  Tree fold {fold_id + 1}: skipped, empty train or test")
             continue
 
-        print(f"  Tree Fold {i+1}/{len(fold_indices)} - "
-              f"train={len(train_idx)}, test={len(test_idx)}")
+        print(
+            f"  Tree fold {fold_id + 1}/{len(fold_indices)} - "
+            f"train={len(train_idx)}, test={len(test_idx)}"
+        )
+        result = train_tree_on_fold(dataset, train_idx, test_idx, fold_id, random_state)
+        fold_frames.append(result["predictions"])
+        importances.append(result["feature_importances"])
+        last_model = result["model"]
 
-        fold_res = train_tree_on_fold(X, y, dates, train_idx, test_idx, features)
-        fold_results.append(fold_res)
-        last_model = fold_res["model"]
-        last_scaler = fold_res["scaler"]
-        last_feat_imp = fold_res["feature_importances"]
+    predictions = assemble_predictions(fold_frames, MODEL_NAME)
 
-    # Aggregate
-    agg = aggregate_fold_results(fold_results)
-    agg_metrics = compute_metrics(
-        agg["y_true"], agg["y_pred"], model_name="Tree Ensemble"
-    )
-    print_metrics(agg_metrics)
+    if save_model and last_model is not None:
+        os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
+        joblib.dump(
+            {"model": last_model, "feature_names": dataset.feature_names}, MODEL_PATH
+        )
+        print(f"Model saved to '{MODEL_PATH}'")
 
-    # --- Save model (last fold's model) ---
-    model_path = "models/tree_ensemble_model.pkl"
-    os.makedirs(os.path.dirname(model_path), exist_ok=True)
-    joblib.dump(
-        {"model": last_model, "scaler": last_scaler, "features": features}, model_path
-    )
-    print(f"Model saved to '{model_path}'")
+    output: Dict[str, Any] = {
+        "model_name": MODEL_NAME,
+        "predictions": predictions,
+        "model": last_model,
+        "feature_names": list(dataset.feature_names),
+        "feature_importances": importances[-1] if importances else None,
+        "mean_feature_importances": (
+            np.mean(importances, axis=0) if importances else None
+        ),
+    }
 
-    from fetch_data import engineer_features
+    if demo_forecast_days > 0:
+        output["demo_forecast"] = _demo_forecast(
+            last_model, dataset, demo_history, demo_forecast_days
+        )
 
-    # --- Future predictions (using last-fold model) ---
-    last_date = pd.to_datetime(data["Date"]).max()
-    future_dates = pd.date_range(
-        start=last_date + pd.Timedelta(days=1), periods=future_days, freq="B"
-    )
+    return output
 
-    future_predictions = []
-    
-    # We only need the last ~60 rows to compute rolling features up to 50 days, but to be safe and consistent we keep the whole dataframe
-    history_df = data.copy().reset_index(drop=True)
 
-    for i in range(future_days):
-        # The last row has the current engineered features
-        current_features = history_df.iloc[-1][features].values.astype(np.float64).reshape(1, -1)
-        feat_sc = last_scaler.transform(current_features)
-        pred = last_model.predict(feat_sc)[0]
-        future_predictions.append(pred)
-        
-        # Build next day's base row
-        new_row = history_df.iloc[-1].copy()
-        new_row["Date"] = future_dates[i]
-        new_row["Close"] = pred
-        new_row["High"] = pred  # Proxy for future high
-        new_row["Low"] = pred   # Proxy for future low
-        
-        # Append and re-engineer features
-        history_df.loc[len(history_df)] = new_row
-        history_df = engineer_features(history_df)
+def _demo_forecast(model, dataset: Dataset, history, horizon: int) -> pd.DataFrame:
+    """Recursive forecast for display. Never enters a metrics table."""
+    if history is None:
+        raise ValueError("demo_forecast_days requires demo_history (the raw frame)")
 
-    future_predictions = np.array(future_predictions)
+    feature_names = list(dataset.feature_names)
 
-    # Save future predictions
-    future_df = pd.DataFrame(
-        {"date": future_dates, "Predicted Close Tree": future_predictions}
+    def predict_next_return(engineered: pd.DataFrame) -> float:
+        row = engineered.iloc[-1][feature_names].to_numpy(dtype=float).reshape(1, -1)
+        return float(model.predict(row)[0])
+
+    forecast = recursive_demo_forecast(
+        history, predict_next_return, horizon, label="Predicted Close Tree"
     )
     os.makedirs("data", exist_ok=True)
-    future_df.to_csv("data/future_predictions_tree.csv", index=False)
-    print("Future predictions saved to 'data/future_predictions_tree.csv'")
-
-    return {
-        "model": last_model,
-        "scaler": last_scaler,
-        "features": features,
-        "y_test": agg["y_true"],
-        "y_pred": agg["y_pred"],
-        "test_dates": agg["test_dates"],
-        "future_dates": future_dates,
-        "future_predictions": future_predictions,
-        "feature_importances": last_feat_imp,
-        "metrics": agg_metrics,
-        "per_fold_metrics": agg.get("per_fold_metrics", []),
-    }
+    forecast.to_csv("data/future_predictions_tree.csv", index=False)
+    return forecast
