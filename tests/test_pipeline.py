@@ -192,17 +192,25 @@ def test_backtest_table_is_produced(result):
 
 
 def test_costs_are_actually_charged(result):
-    """Net return is always at or below gross; costs are non-negative.
+    """Net return is at or below gross, because costs are non-negative.
 
-    Note the Sharpe ratio is NOT monotone in cost: subtracting a varying cost
-    series changes the numerator and the denominator, so net Sharpe can exceed
-    gross Sharpe. Only the return comparison is guaranteed.
+    Asserted on the returns and not on the table's Sharpe, for two reasons.
+    Sharpe is a ratio, so subtracting a varying cost series moves both its
+    numerator and its denominator and net Sharpe can legitimately exceed
+    gross. And a nearly-always-long strategy trades so little that its cost
+    falls below the table's three-decimal rounding.
     """
+    from backtest import backtest
+
     output, _ = result
-    economics = output["economics"].drop(index="Buy and hold")
-    for name, row in economics.iterrows():
-        if row["Ann. turnover"] > 0:
-            assert row["Sharpe net"] != row["Sharpe gross"], name
+    predictions = output["base_results"]["tree"]["predictions"]
+
+    free = backtest(predictions, cost_bps=0.0)
+    charged = backtest(predictions, cost_bps=50.0)
+
+    assert charged["net"]["annualised_turnover"] > 0
+    assert charged["net"]["total_return"] < free["net"]["total_return"]
+    assert (charged["daily"]["net_return"] <= charged["daily"]["gross_return"]).all()
 
 
 def test_a_strategy_is_only_a_finding_if_it_beats_buy_and_hold(result):
