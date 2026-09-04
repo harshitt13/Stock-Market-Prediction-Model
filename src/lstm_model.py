@@ -1,54 +1,53 @@
-"""
-Bidirectional LSTM (PyTorch) for next-day close price prediction.
+"""Bidirectional LSTM (PyTorch), forecasting next-day log return.
 
-Refactored to support walk-forward validation via external fold indices.
+Ported to the contract in REFACTOR_PLAN.md section 1. Two things changed
+beyond swapping the target:
+
+- Windows come from :func:`dataset.build_sequences`, so the target is ``y``
+  from the dataset object rather than ``dataset[i + time_step, 0]``, which was
+  the *scaled Close column of the feature matrix*. Predictions are therefore
+  keyed by the same ``target_date`` as the tree model, and the two can be
+  merged on an exact key instead of on an assumption.
+
+- MinMaxScaler became StandardScaler. The scaler was already fitted on
+  training folds only, which was correct and is kept; MinMax was still the
+  wrong choice, because it maps the training range onto [0, 1] and puts every
+  larger test move outside it.
 """
 
-import pandas as pd
-import numpy as np
+from __future__ import annotations
+
 import os
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
-from sklearn.preprocessing import MinMaxScaler
-from typing import Dict, Any, List, Tuple, Optional
 
-from evaluate import compute_metrics, print_metrics
+from dataset import Dataset, build_sequences
+from model_utils import (
+    apply_feature_scaler,
+    assemble_predictions,
+    default_folds,
+    fit_feature_scaler,
+    fit_target_scaler,
+    fold_predictions,
+    recursive_demo_forecast,
+    scale_targets,
+    unscale_targets,
+)
 
-# ── Device Selection ─────────────────────────────────────────────────────
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-
-def get_feature_columns(df: pd.DataFrame) -> List[str]:
-    """Return the list of feature columns (everything except Date)."""
-    return [c for c in df.columns if c != "Date"]
-
-
-def create_sequences(dataset: np.ndarray, time_step: int = 90):
-    """
-    Create overlapping sequences for LSTM training.
-
-    Args:
-        dataset: 2D numpy array (samples, features). Close must be column 0.
-        time_step: Number of lookback days.
-
-    Returns:
-        X: 3D array (samples, time_step, features)
-        y: 1D array of next-day Close (scaled)
-    """
-    X, y = [], []
-    for i in range(len(dataset) - time_step):
-        X.append(dataset[i : i + time_step])
-        y.append(dataset[i + time_step, 0])  # Close is column 0
-    return np.array(X, dtype=np.float32), np.array(y, dtype=np.float32)
+MODEL_NAME = "BiLSTM"
+MODEL_PATH = "models/lstm_model.pt"
+DEFAULT_LOOKBACK = 90
 
 
-# ── BiLSTM Model ─────────────────────────────────────────────────────────
 class BiLSTMModel(nn.Module):
-    """
-    Deep Bidirectional LSTM with BatchNorm and Dropout for stock price prediction.
-    Architecture: 3× BiLSTM(128→64→32) → Dense(64) → Dense(32) → Dense(1)
-    """
+    """3x BiLSTM(128->64->32) -> Dense(64) -> Dense(32) -> Dense(1)."""
 
     def __init__(self, n_features, hidden_sizes=(128, 64, 32), dropout=0.3):
         super().__init__()
@@ -97,14 +96,16 @@ class BiLSTMModel(nn.Module):
         return self.fc(out).squeeze(-1)
 
 
-def _train_lstm_on_sequences(
+def _train_on_sequences(
     X_train: np.ndarray,
     y_train: np.ndarray,
     n_features: int,
     epochs: int = 100,
     patience: int = 15,
+    batch_size: int = 64,
+    verbose: bool = True,
 ) -> BiLSTMModel:
-    """Train a BiLSTM model on pre-built sequences with early stopping."""
+    """Train with early stopping on a time-respecting tail validation split."""
     model = BiLSTMModel(n_features).to(DEVICE)
     criterion = nn.HuberLoss(delta=1.0)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -112,13 +113,16 @@ def _train_lstm_on_sequences(
         optimizer, mode="min", factor=0.5, patience=5, min_lr=1e-6
     )
 
-    # Train / val split (time-respecting within fold)
-    val_split = int(len(X_train) * 0.9)
+    val_split = max(1, int(len(X_train) * 0.9))
     X_tr, X_val = X_train[:val_split], X_train[val_split:]
     y_tr, y_val = y_train[:val_split], y_train[val_split:]
 
-    tr_dataset = TensorDataset(torch.tensor(X_tr), torch.tensor(y_tr))
-    tr_loader = DataLoader(tr_dataset, batch_size=64, shuffle=False)
+    tr_loader = DataLoader(
+        TensorDataset(torch.tensor(X_tr), torch.tensor(y_tr)),
+        batch_size=batch_size,
+        shuffle=False,
+        drop_last=len(X_tr) > batch_size,  # BatchNorm needs more than one row
+    )
     X_val_t = torch.tensor(X_val).to(DEVICE)
     y_val_t = torch.tensor(y_val).to(DEVICE)
 
@@ -129,31 +133,30 @@ def _train_lstm_on_sequences(
     for epoch in range(epochs):
         model.train()
         epoch_loss = 0.0
+        n_batches = 0
         for batch_X, batch_y in tr_loader:
             batch_X, batch_y = batch_X.to(DEVICE), batch_y.to(DEVICE)
             optimizer.zero_grad()
-            preds = model(batch_X)
-            loss = criterion(preds, batch_y)
+            loss = criterion(model(batch_X), batch_y)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
             epoch_loss += loss.item()
+            n_batches += 1
 
         model.eval()
         with torch.no_grad():
-            if len(X_val) > 0:
-                val_preds = model(X_val_t)
-                val_loss = criterion(val_preds, y_val_t).item()
+            if len(X_val) > 1:
+                val_loss = criterion(model(X_val_t), y_val_t).item()
             else:
-                val_loss = epoch_loss / max(len(tr_loader), 1)
+                val_loss = epoch_loss / max(n_batches, 1)
 
         scheduler.step(val_loss)
 
-        if (epoch + 1) % 20 == 0 or epoch == 0:
+        if verbose and ((epoch + 1) % 20 == 0 or epoch == 0):
             print(
-                f"    Epoch {epoch+1}/{epochs} - "
-                f"Train: {epoch_loss/max(len(tr_loader),1):.6f}, "
-                f"Val: {val_loss:.6f}"
+                f"    Epoch {epoch + 1}/{epochs} - "
+                f"Train: {epoch_loss / max(n_batches, 1):.6f}, Val: {val_loss:.6f}"
             )
 
         if val_loss < best_val_loss:
@@ -163,223 +166,164 @@ def _train_lstm_on_sequences(
         else:
             patience_counter += 1
             if patience_counter >= patience:
-                print(f"    Early stopping at epoch {epoch+1}")
+                if verbose:
+                    print(f"    Early stopping at epoch {epoch + 1}")
                 break
 
     if best_state is not None:
         model.load_state_dict(best_state)
-
     return model
 
 
 def train_lstm_model(
-    data: pd.DataFrame,
-    future_days: int = 30,
+    dataset: Dataset,
     fold_indices: Optional[List[Tuple[np.ndarray, np.ndarray]]] = None,
+    lookback: int = DEFAULT_LOOKBACK,
+    epochs: int = 100,
+    patience: int = 15,
+    seed: Optional[int] = 42,
+    save_model: bool = True,
+    verbose: bool = True,
+    demo_forecast_days: int = 0,
+    demo_history: Optional[pd.DataFrame] = None,
 ) -> Dict[str, Any]:
+    """Walk-forward training of the BiLSTM on log returns.
+
+    Both scalers are fitted on the fold's training rows only. Test windows may
+    reach back into training rows for their lookback, which is not leakage:
+    those are past observations at the time each forecast is made.
     """
-    Train BiLSTM with walk-forward validation.
+    if seed is not None:
+        torch.manual_seed(seed)
+        np.random.seed(seed)
 
-    Parameters
-    ----------
-    data : pd.DataFrame
-        Full stock data with engineered features.
-    future_days : int
-        Number of future days to forecast.
-    fold_indices : list of (train_idx, test_idx), optional
-        Walk-forward folds on the *raw data* (before sequencing).
-        If None, falls back to single 80/20 split.
-
-    Returns
-    -------
-    dict with aggregated results + future predictions.
-    """
-    from walk_forward import aggregate_fold_results
-
-    df = data.copy()
-    df["Date"] = pd.to_datetime(df["Date"])
-    dates_raw = df["Date"].values
-
-    features = get_feature_columns(data)
-    if features[0] != "Close":
-        features.remove("Close")
-        features.insert(0, "Close")
-
-    n_features = len(features)
-    time_step = 90
-
-    # --- Walk-forward or single split ---
+    n = len(dataset)
     if fold_indices is None:
-        n = len(df)
-        train_size = int(n * 0.8)
-        fold_indices = [(np.arange(0, train_size), np.arange(train_size, n))]
+        fold_indices = default_folds(n)
 
-    fold_results = []
+    fold_frames: List[pd.DataFrame] = []
     last_model = None
-    last_scaler = None
+    last_x_scaler = None
+    last_y_scaler = None
 
-    for fi, (train_idx, test_idx) in enumerate(fold_indices):
-        print(
-            f"  LSTM Fold {fi+1}/{len(fold_indices)} - "
-            f"train={len(train_idx)}, test={len(test_idx)}"
-        )
-
-        # Fit scaler only on training data
-        scaler = MinMaxScaler(feature_range=(0, 1))
-        scaler.fit(df[features].iloc[train_idx])
-        scaled_all = scaler.transform(df[features])
-
-        # Build sequences from the combined train+test region
-        # but ensure test sequences only use training data in their lookback
-        fold_start = train_idx[0]
-        fold_end = test_idx[-1] + 1
-        scaled_fold = scaled_all[fold_start:fold_end]
-
-        X_seq, y_seq = create_sequences(scaled_fold, time_step)
-        if len(X_seq) == 0:
-            print(f"    Skipping fold {fi+1}: not enough data for sequences")
+    for fold_id, (train_idx, test_idx) in enumerate(fold_indices):
+        train_idx = np.asarray(train_idx)[np.asarray(train_idx) < n]
+        test_idx = np.asarray(test_idx)[np.asarray(test_idx) < n]
+        if len(train_idx) == 0 or len(test_idx) == 0:
+            print(f"  LSTM fold {fold_id + 1}: skipped, empty train or test")
             continue
 
-        # Map sequence indices back to original data indices
-        # Sequence i corresponds to predicting data point (fold_start + time_step + i)
-        seq_orig_idx = np.arange(fold_start + time_step, fold_start + time_step + len(X_seq))
+        if verbose:
+            print(
+                f"  LSTM fold {fold_id + 1}/{len(fold_indices)} - "
+                f"train={len(train_idx)}, test={len(test_idx)}"
+            )
 
-        # Split: sequences whose target falls in train vs test
-        train_end_orig = train_idx[-1] + 1
-        seq_train_mask = seq_orig_idx < train_end_orig
-        seq_test_mask = ~seq_train_mask
+        x_scaler = fit_feature_scaler(dataset, train_idx)
+        y_scaler = fit_target_scaler(dataset.y[train_idx])
+        scaled = apply_feature_scaler(dataset, x_scaler)
 
-        X_train_seq = X_seq[seq_train_mask]
-        y_train_seq = y_seq[seq_train_mask]
-        X_test_seq = X_seq[seq_test_mask]
-        y_test_seq = y_seq[seq_test_mask]
-
-        if len(X_train_seq) == 0 or len(X_test_seq) == 0:
-            print(f"    Skipping fold {fi+1}: insufficient train/test sequences")
+        try:
+            train_seq = build_sequences(scaled, lookback, train_idx)
+            test_seq = build_sequences(scaled, lookback, test_idx)
+        except ValueError as exc:
+            print(f"    Skipping fold {fold_id + 1}: {exc}")
             continue
 
-        # Train
-        model = _train_lstm_on_sequences(
-            X_train_seq, y_train_seq, n_features, epochs=100, patience=15
+        if len(train_seq) < 2:
+            print(f"    Skipping fold {fold_id + 1}: too few training windows")
+            continue
+
+        model = _train_on_sequences(
+            train_seq.X.astype(np.float32),
+            scale_targets(y_scaler, train_seq.y).astype(np.float32),
+            dataset.n_features,
+            epochs=epochs,
+            patience=patience,
+            verbose=verbose,
         )
 
-        # Predict
         model.eval()
         with torch.no_grad():
-            X_test_t = torch.tensor(X_test_seq).to(DEVICE)
-            y_pred_scaled = model(X_test_t).cpu().numpy()
-
-        # Inverse transform
-        def inverse_close(arr):
-            arr = np.asarray(arr, dtype=np.float64).flatten()
-            padded = np.column_stack(
-                [arr.reshape(-1, 1), np.zeros((len(arr), n_features - 1))]
+            scaled_pred = (
+                model(torch.tensor(test_seq.X.astype(np.float32)).to(DEVICE))
+                .cpu()
+                .numpy()
             )
-            return scaler.inverse_transform(padded)[:, 0]
 
-        y_pred_inv = inverse_close(y_pred_scaled)
-        y_test_inv = inverse_close(y_test_seq)
+        fold_frames.append(
+            fold_predictions(
+                dataset,
+                fold_id,
+                test_seq.row_index,
+                unscale_targets(y_scaler, scaled_pred),
+            )
+        )
+        last_model, last_x_scaler, last_y_scaler = model, x_scaler, y_scaler
 
-        # Dates for test sequences
-        test_seq_dates = dates_raw[seq_orig_idx[seq_test_mask]]
+    predictions = assemble_predictions(fold_frames, MODEL_NAME)
 
-        metrics = compute_metrics(y_test_inv, y_pred_inv, model_name="BiLSTM")
-
-        fold_results.append(
+    if save_model and last_model is not None:
+        os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
+        torch.save(
             {
-                "y_true": y_test_inv,
-                "y_pred": y_pred_inv,
-                "test_dates": test_seq_dates,
-                "metrics": metrics,
-            }
+                "model_state_dict": last_model.state_dict(),
+                "n_features": dataset.n_features,
+                "lookback": lookback,
+                "feature_names": dataset.feature_names,
+            },
+            MODEL_PATH,
         )
-        last_model = model
-        last_scaler = scaler
+        print(f"Model saved to '{MODEL_PATH}'")
 
-    if not fold_results:
-        raise RuntimeError("LSTM: No valid folds produced results.")
+    output: Dict[str, Any] = {
+        "model_name": MODEL_NAME,
+        "predictions": predictions,
+        "model": last_model,
+        "x_scaler": last_x_scaler,
+        "y_scaler": last_y_scaler,
+        "lookback": lookback,
+        "feature_names": list(dataset.feature_names),
+    }
 
-    # Aggregate
-    agg = aggregate_fold_results(fold_results)
-    agg_metrics = compute_metrics(agg["y_true"], agg["y_pred"], model_name="BiLSTM")
-    print_metrics(agg_metrics)
-
-    # --- Save model ---
-    model_path = "models/lstm_model.pt"
-    os.makedirs(os.path.dirname(model_path), exist_ok=True)
-    torch.save(
-        {
-            "model_state_dict": last_model.state_dict(),
-            "n_features": n_features,
-            "time_step": time_step,
-        },
-        model_path,
-    )
-    print(f"Model saved to '{model_path}'")
-
-    from fetch_data import engineer_features
-
-    # --- Future predictions ---
-    last_date = pd.to_datetime(data["Date"]).max()
-    future_dates = pd.date_range(
-        start=last_date + pd.Timedelta(days=1), periods=future_days, freq="B"
-    )
-
-    def inverse_close_single(arr):
-        arr = np.asarray(arr, dtype=np.float64).flatten()
-        padded = np.column_stack(
-            [arr.reshape(-1, 1), np.zeros((len(arr), n_features - 1))]
+    if demo_forecast_days > 0:
+        output["demo_forecast"] = _demo_forecast(
+            last_model,
+            last_x_scaler,
+            last_y_scaler,
+            dataset,
+            demo_history,
+            lookback,
+            demo_forecast_days,
         )
-        return last_scaler.inverse_transform(padded)[:, 0]
 
-    future_preds_scaled = []
-    
-    # Track the raw data to dynamically rebuild features
-    history_df = data.copy().reset_index(drop=True)
+    return output
 
-    last_model.eval()
-    for i in range(future_days):
-        # We need the last `time_step` scaled features
-        # Recalculate scaled data for the current history window
-        scaled_history = last_scaler.transform(history_df[features])
-        current_sequence = scaled_history[-time_step:].reshape(1, time_step, n_features)
-        
+
+def _demo_forecast(
+    model, x_scaler, y_scaler, dataset: Dataset, history, lookback: int, horizon: int
+) -> pd.DataFrame:
+    """Recursive forecast for display. Never enters a metrics table."""
+    if history is None:
+        raise ValueError("demo_forecast_days requires demo_history (the raw frame)")
+
+    feature_names = list(dataset.feature_names)
+    model.eval()
+
+    def predict_next_return(engineered: pd.DataFrame) -> float:
+        window = engineered[feature_names].to_numpy(dtype=float)[-lookback:]
+        if len(window) < lookback:
+            raise ValueError(
+                f"demo forecast needs {lookback} engineered rows, got {len(window)}"
+            )
+        batch = x_scaler.transform(window).reshape(1, lookback, len(feature_names))
         with torch.no_grad():
-            seq_t = torch.tensor(current_sequence, dtype=torch.float32).to(DEVICE)
-            pred_scaled = last_model(seq_t).cpu().numpy()[0]
-        future_preds_scaled.append(pred_scaled)
-        
-        pred_inv = inverse_close_single([pred_scaled])[0]
-        
-        # Build next day's base row in raw scale
-        new_row = history_df.iloc[-1].copy()
-        new_row["Date"] = future_dates[i]
-        new_row["Close"] = pred_inv
-        new_row["High"] = pred_inv
-        new_row["Low"] = pred_inv
-        
-        # Append and re-engineer features
-        history_df.loc[len(history_df)] = new_row
-        history_df = engineer_features(history_df)
+            scaled = model(torch.tensor(batch.astype(np.float32)).to(DEVICE)).cpu().numpy()
+        return float(unscale_targets(y_scaler, scaled)[0])
 
-    future_preds_inv = inverse_close_single(np.array(future_preds_scaled))
-
-    future_df = pd.DataFrame(
-        {"date": future_dates, "Predicted Close LSTM": future_preds_inv}
+    forecast = recursive_demo_forecast(
+        history, predict_next_return, horizon, label="Predicted Close LSTM"
     )
     os.makedirs("data", exist_ok=True)
-    future_df.to_csv("data/future_predictions_lstm.csv", index=False)
-    print("Future predictions saved to 'data/future_predictions_lstm.csv'")
-
-    return {
-        "model": last_model,
-        "scaler": last_scaler,
-        "features": features,
-        "y_test": agg["y_true"],
-        "y_pred": agg["y_pred"],
-        "test_dates": agg["test_dates"],
-        "future_dates": future_dates,
-        "future_predictions": future_preds_inv,
-        "metrics": agg_metrics,
-        "per_fold_metrics": agg.get("per_fold_metrics", []),
-    }
+    forecast.to_csv("data/future_predictions_lstm.csv", index=False)
+    return forecast
