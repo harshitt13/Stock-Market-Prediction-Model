@@ -344,7 +344,9 @@ shape rather than support: on average only 0.20% of a fold's test returns
 fell outside its training range (same file, `test_outside_train_range`).
 
 We then regressed the tree's per-fold R²_OOS on the fold's KS statistic
-across all 357 pairs (README §3.5; `docs/figures/shift_vs_r2_oos.png`;
+across all 357 pairs (`results/shift_tests.csv`; the per-fold series it is
+fitted on is `results/fold_r2_oos.csv`; README §3.5;
+`docs/figures/shift_vs_r2_oos.png`; both files are written by
 `analysis/distribution_shift_and_exposure.py`, which requires the gitignored
 raw cache to rebuild each fold's training returns):
 
@@ -355,11 +357,11 @@ raw cache to rebuild each fold's training returns):
 
 Folds on which the test rejected had mean R²_OOS of −0.1419 (n = 119)
 against −0.0505 (n = 238) on folds where it did not, a factor of 2.8; Welch's
-t was −4.10, p = 0.0001 (README §3.5). **[unsourced]**: the outline also
-reports a Mann-Whitney p of 0.0003 for the same comparison. The analysis
-script computes it, but its printed output is not persisted and the per-fold
-R²_OOS series cannot be rebuilt from committed files alone, so we do not
-cite it here.
+t was −4.10, p = 0.0001, and a Mann-Whitney test, which does not assume that
+per-fold R²_OOS is normal, gave U = 10818, p = 0.0003
+(`results/shift_tests.csv`; README §3.5). The same comparison on directional
+accuracy gave 49.69% against 50.82%, Welch p = 0.0056 and Mann-Whitney
+p = 0.011 (same file).
 
 We report the ceiling honestly. Shift explained 11.6% of the variance in
 per-fold R²_OOS and 1.2% of the variance in directional accuracy. It

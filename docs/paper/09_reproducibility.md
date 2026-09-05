@@ -80,6 +80,8 @@ without retraining, by the scripts under `analysis/` (README §9;
 | `results/predictions/` | 595,224 predictions of the 30-ticker sweep | §6.2, §6.3, the cross-ticker figure |
 | `results/per_ticker_model.csv` | 200 rows of per-ticker, per-model metrics with the seeded benchmark | Table 2, §6.2 |
 | `results/fold_diagnostics.csv` | 357 fold-ticker rows of train/test return statistics and the KS test | §6.4 |
+| `results/fold_r2_oos.csv`, `results/shift_tests.csv` | the tree's per-fold R²_OOS and directional accuracy on the 357 pairs with each pair's KS result, and the regression and shifted-against-stable tests fitted on them | §6.4, §8.4 |
+| `results/tree_exposure.csv` | the tree's per-ticker prediction dispersion: mean and sd of predicted returns against the sd of realised returns, fraction of positive predictions, sign-flip rate | §7.3 |
 | `results/fold_aggregates_headline.csv`, `results/fold_aggregates_sweep.csv` | pooled, across-fold mean, sd and median R²_OOS for every headline model and every sweep ticker | Table 1, Table 2, §5.7 |
 | `results/grid_vs_data.csv`, `results/grid_vs_data_rawdiff.csv` | the 2×2 of data against fold grid for the AAPL tree, and the sweep cache against the frozen CSV column by column | §8.3 |
 | `results/grid_offset_sweep.csv` | the AAPL tree at ten fold-grid offsets on the frozen CSV | §8.3 |
