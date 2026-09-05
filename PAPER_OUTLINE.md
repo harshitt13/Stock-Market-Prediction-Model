@@ -253,7 +253,7 @@ zero-return baseline at all.
 Tuning against the test set is one of the artifacts we are documenting.
 Report that the meta's ridge penalty was CV-selected and landed between 10^3
 and 10^6 per fold, the top of the grid in four fold-fits
-(results/headline/AAPL__frozen__seed42_meta_fits.csv), i.e. the only tuned
+(results/AAPL__frozen__seed42_meta_fits.csv), i.e. the only tuned
 component chose heavy shrinkage in every fold.
 
 **"Daily horizon is known to be hard."** Answer: agreed, and that is the
