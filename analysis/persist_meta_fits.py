@@ -9,7 +9,9 @@ frame from the committed base predictions of the headline run
 VIX level at each feature date), refits both meta variants exactly as
 main.py does, asserts that the refit reproduces the parquet's own meta
 predictions, and writes the fold records to
-results/headline/AAPL__frozen__seed42_meta_fits.csv.
+results/AAPL__frozen__seed42_meta_fits.csv. It lives outside
+results/headline/ because experiments.load_runs reads every CSV in a run
+directory as predictions.
 
     python analysis/persist_meta_fits.py
 """
@@ -30,7 +32,7 @@ from meta_ensemble import MIN_TRAIN_FOLDS, build_meta_frame, fit_stacked_meta  #
 
 PARQUET_DIR = REPO / "results" / "headline"
 FROZEN_CSV = REPO / "docs" / "frozen_aapl_raw.csv"
-OUT = PARQUET_DIR / "AAPL__frozen__seed42_meta_fits.csv"
+OUT = REPO / "results" / "AAPL__frozen__seed42_meta_fits.csv"
 BASE = {"tree": "Tree Ensemble", "lstm": "BiLSTM", "transformer": "Transformer"}
 
 

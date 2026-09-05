@@ -320,7 +320,7 @@ variants are compared by a Diebold-Mariano test on their error series
 (`compare_vix_gating`), and base-model weights refitted within VIX terciles are
 reported as a diagnostic (`vix_tercile_weights`). The penalty `RidgeCV`
 selected in each fold of the headline run is committed
-(`results/headline/AAPL__frozen__seed42_meta_fits.csv`, written by
+(`results/AAPL__frozen__seed42_meta_fits.csv`, written by
 `analysis/persist_meta_fits.py`, which refits both variants from the stored
 base predictions and asserts the refit reproduces the parquet's meta
 predictions exactly). Over the ten fitted folds the +VIX variant chose 10³
@@ -444,7 +444,7 @@ explain the magnitude of the error, not its sign.
 | `results/predictions/` | sweep coverage: 30 tickers, which carry ten models and which six, first and last forecast days, fold counts |
 | `results/fold_diagnostics.csv` | sweep fold sizes; the 357 fold-ticker pairs |
 | `results/seeds/` | the seed study's models, seeds and folds |
-| `results/headline/AAPL__frozen__seed42_meta_fits.csv` | the ridge penalty, intercept and coefficients the meta-learner fitted in each fold |
+| `results/AAPL__frozen__seed42_meta_fits.csv` | the ridge penalty, intercept and coefficients the meta-learner fitted in each fold |
 | `requirements-lock.txt` | library versions of the environment behind the committed results |
 | `tests/fixtures/aapl_raw.csv` | the fixture: rows, span; nine folds and 420 days under 400/60/60 |
 | `src/fetch_data.py`, `src/dataset.py`, `src/contracts.py`, `src/walk_forward.py` | data source, features, contract, splitter |
