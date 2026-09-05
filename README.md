@@ -270,21 +270,27 @@ Two ways they are produced:
   regenerated each time) unless `--no-plots` is passed.
 - **`python analysis/make_figures.py`** rebuilds the committed set below into
   `docs/figures/` from `results/` and `docs/`, without retraining anything.
+- **`python analysis/freeze_headline_predictions.py`** re-runs the §3.1
+  headline configuration on the frozen CSV and writes its per-fold
+  predictions to `results/headline/AAPL__frozen__seed42.parquet`, the
+  committed source of every AAPL figure. About an hour on CPU; only needed
+  if a model changes.
 
-> **Provenance note — read this before comparing a figure to Table 1.**
-> The AAPL figures are built from `results/predictions/AAPL__full__seed42.parquet`,
-> which the 30-ticker sweep produced from its own fetch. Table 1 in §3.1 comes
-> from the separately frozen `docs/frozen_aapl_raw.csv`. The two contain the
-> same 4144 trading days, but the frozen file is the pre-refactor pipeline's
-> already-warmed-up frame, so re-engineering it costs a second ~50-row warm-up
-> (4144 → 4094 rows) while the sweep cache was saved post-engineering and keeps
-> them (4144 → 4143). **Every fold boundary in the sweep therefore sits 49
-> trading days earlier than in Table 1** — fold 0's test window opens
-> 2014-03-19 in the sweep and 2014-05-29 in the frozen run. The figures' AAPL
-> numbers (e.g. Tree Ensemble DA − majority = −2.39) are the §3.2 sweep numbers,
-> not the §3.1 ones (−1.19). Same ticker, same code, offset fold grid;
-> `make_figures.py` prints the offset every time it runs and asserts the
-> parquet and the rebuilt dataset agree before drawing anything.
+> **Provenance.** Each subsection below names its source. The AAPL figures
+> in §4.2 are built from `results/headline/AAPL__frozen__seed42.parquet`: the
+> §3.1 headline run itself, re-executed on `docs/frozen_aapl_raw.csv` with the
+> same 12-fold configuration and seed, so their fold boundaries are Table 1's
+> (fold 0's test window opens 2014-05-29). `make_figures.py` asserts two
+> things before drawing: the parquet's fold-0 realised returns equal the
+> frozen dataset's, and the comparison table rebuilt from the parquet equals
+> `docs/baseline_after_refactor.csv`, which is Table 1, to the printed digits.
+> `tests/test_headline_provenance.py` runs the same two checks. The
+> cross-ticker figures in §4.3 come from the 30-ticker sweep, where every
+> ticker sits on its own fetch grid and no offset arises. The sweep's AAPL
+> fetch cache is a different file from the frozen CSV, and its fold grid
+> opens 49 trading days earlier (2014-03-19); the two figures that use that
+> run, the five-seed study and the ringed AAPL point in the cross-ticker
+> strip, state the offset in their own titles rather than relying on this note.
 
 ### 4.1 The headline
 
@@ -292,26 +298,31 @@ Two ways they are produced:
 |---|---|
 | ![before/after](docs/figures/before_after.png) | **`before_after.png`** — The same models on identical frozen data. Left: R² on the *price* target, where the naive baseline scores 0.9992 and beats every model. Right: R²_OOS on the *return* target, where nothing is above zero. `Random sign` is drawn off-scale so it cannot squash the panel. |
 
-### 4.2 AAPL, 2520 common-window days, 12 folds, seed 42
+### 4.2 AAPL headline run, Table 1's grid: 2520 common-window days, 12 folds, seed 42
+
+Source: `results/headline/AAPL__frozen__seed42.parquet` and `docs/frozen_aapl_raw.csv`.
 
 | figure | what it shows |
 |---|---|
-| [`aapl_predicted_vs_realised.png`](docs/figures/aapl_predicted_vs_realised.png) | Predicted vs realised next-day return, one panel per model. **Every model is a horizontal band.** Correlations are −0.010 to +0.026; prediction spread is 2–38% of realised spread. This is the central picture. |
+| [`aapl_predicted_vs_realised.png`](docs/figures/aapl_predicted_vs_realised.png) | Predicted vs realised next-day return, one panel per model. **Every model is a horizontal band.** Correlations are +0.006 to +0.068; prediction spread is 4–23% of realised spread. This is the central picture. |
 | [`aapl_prediction_dispersion.png`](docs/figures/aapl_prediction_dispersion.png) | Distribution of each model's predictions beside the realised distribution. The models that pick a level rather than forecast collapse to a spike. |
 | [`aapl_model_comparison.png`](docs/figures/aapl_model_comparison.png) | Directional accuracy minus the majority-class rate, and R²_OOS, per model, with zero lines. Models first, baselines last. |
 | [`aapl_alpha_beta.png`](docs/figures/aapl_alpha_beta.png) | Annualised alpha with its t-statistic (red if \|t\| > 1.96 — none is) and beta against buy-and-hold. `Historical mean` has beta 1.000: it *is* the market. |
-| [`aapl_equity_curves.png`](docs/figures/aapl_equity_curves.png) | Net-of-cost growth of 1 for each long/flat strategy against buy-and-hold, log scale. The meta and historical-mean curves sit on buy-and-hold; the tree's flat stretch through 2020–21 is its time out of the market. |
+| [`aapl_equity_curves.png`](docs/figures/aapl_equity_curves.png) | Net-of-cost growth of 1 for each long/flat strategy against buy-and-hold, log scale. The historical-mean curve sits on buy-and-hold: it is always long. The tree's Sharpe (1.17) edges buy-and-hold's (1.04), but its alpha t-statistic is +1.71, inside the noise band (see `aapl_alpha_beta.png`); the meta curves sit below buy-and-hold. The flat stretches in the tree and meta curves through 2021 are time out of the market. |
 | [`aapl_r2_oos_by_fold.png`](docs/figures/aapl_r2_oos_by_fold.png) | R²_OOS per walk-forward fold, per model. Shows the instability that the pooled number hides. |
 | [`aapl_da_minus_majority_by_fold.png`](docs/figures/aapl_da_minus_majority_by_fold.png) | The same for directional accuracy minus majority. |
 | [`aapl_calibration.png`](docs/figures/aapl_calibration.png) | Empirical coverage of the 95% interval per fold, quantiles from earlier folds only, against the nominal line. |
 | [`aapl_walk_forward_folds.png`](docs/figures/aapl_walk_forward_folds.png) | Price history with each fold's test span shaded: 12 expanding folds, test always after train. |
 
-### 4.3 Beyond one stock
+### 4.3 Beyond one stock, from the 30-ticker sweep
+
+Source: `results/predictions/`, `results/seeds/`, `results/fold_diagnostics.csv`
+and `docs/baseline_*.csv`. Only the before/after pair is on the frozen data.
 
 | figure | what it shows |
 |---|---|
-| [`cross_ticker_null.png`](docs/figures/cross_ticker_null.png) | Tree Ensemble on 30 US large caps: DA − majority, R²_OOS and t(alpha) as strip plots, AAPL ringed. **0/30 above zero on R²_OOS; 0/30 with t > +1.96; 8/30 with t < −1.96.** |
-| [`seed_variance.png`](docs/figures/seed_variance.png) | Five seeds each of BiLSTM and Transformer. The Transformer's R²_OOS straddles zero across seeds; the DA clouds overlap. Architecture is not distinguishable from seed noise. |
+| [`cross_ticker_null.png`](docs/figures/cross_ticker_null.png) | Tree Ensemble on 30 US large caps: DA − majority, R²_OOS and t(alpha) as strip plots, AAPL ringed. **0/30 above zero on R²_OOS; 0/30 with t > +1.96; 8/30 with t < −1.96.** The ringed AAPL is the sweep's own run, on the sweep grid (fold 0 opens 2014-03-19, 49 trading days before Table 1's), as the title states. |
+| [`seed_variance.png`](docs/figures/seed_variance.png) | Five seeds each of BiLSTM and Transformer, run on the sweep's fetch cache and therefore on the sweep grid; the title states the 49-day offset from Table 1. The Transformer's R²_OOS straddles zero across seeds; the DA clouds overlap. Architecture is not distinguishable from seed noise. Requires `results/raw/` to rebuild. |
 | [`shift_vs_r2_oos.png`](docs/figures/shift_vs_r2_oos.png) | Per-fold R²_OOS against the fold's train-vs-test KS statistic, all 357 fold-ticker pairs, shifted folds in red with the OLS fit. Distribution shift predicts the *magnitude* error (slope −1.58, t = −6.84) — but the fit's **R² = 0.116** is printed on the figure so the ceiling is visible: shift explains about a ninth of the R²_OOS variance and almost none of the directional error. Requires `results/raw/` to rebuild. |
 
 ---
@@ -465,7 +476,7 @@ Price is a display quantity only: `close_hat[t+1] = close_t[t] * exp(y_hat[t])`.
 | **Scalers fitted on training folds only** | `StandardScaler`, not MinMax: MinMax maps the training range onto [0,1] and puts every larger test move outside it. |
 | **Offline tests** | `yfinance` is imported lazily inside `_get_ticker()`; a subprocess test asserts it is not in `sys.modules` after importing the data layer. |
 
-**Test suite: 329 tests.** The most important is
+**Test suite: 331 tests.** The most important is
 `test_features_do_not_depend_on_future_rows`.
 
 ---
@@ -548,8 +559,8 @@ python analysis/alpha_correction_and_window.py   # section 3.4
 python analysis/distribution_shift_and_exposure.py  # section 3.5
 ```
 
-`results/predictions/` and `results/seeds/` are committed, so every analysis
-script runs without retraining. `results/raw/` is gitignored (86MB,
+`results/predictions/`, `results/seeds/` and `results/headline/` are committed,
+so every analysis script runs without retraining. `results/raw/` is gitignored (86MB,
 regenerable).
 
 ---
@@ -571,7 +582,7 @@ regenerable).
 | `src/main.py` | CLI orchestrator. |
 | `analysis/` | One-shot analyses that read `results/` without retraining. |
 | `docs/` | Frozen input and the before/after comparison tables. |
-| `tests/` | 329 tests, including the mutation-tested leakage suite. |
+| `tests/` | 331 tests, including the mutation-tested leakage suite. |
 
 ---
 
