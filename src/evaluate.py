@@ -347,25 +347,62 @@ def _metrics_for_slice(
     out.update(return_error_metrics(y_true, y_pred))
     out.update(price_space_metrics(close_t, y_true, y_pred))
     if benchmark is None:
+        if y_train is None or len(y_train) == 0:
+            raise UnseededBenchmark(
+                "R2_OOS needs a benchmark seeded with training returns; none was given"
+            )
         benchmark = expanding_mean_benchmark(y_true, y_train)
     out["r2_oos"] = r2_oos(y_true, y_pred, benchmark)
     return out
 
 
+class UnseededBenchmark(ValueError):
+    """R2_OOS was about to be computed against a benchmark started cold."""
+
+
+def require_training_returns(y_train_by_fold, predictions: pd.DataFrame) -> None:
+    """Refuse to evaluate without a training history for every fold.
+
+    The expanding-mean benchmark behind R2_OOS must be seeded with the fold's
+    training returns. Started cold, its first values are one- and
+    two-observation means, and every model's R2_OOS is biased upward. That
+    happened twice in this project: once found and fixed with a flag and a
+    warning, and once again at an aggregation call site that never read the
+    flag. The omission is therefore no longer flagged; it raises here, at
+    every call site, before any metric is computed.
+    """
+    if y_train_by_fold is None or not hasattr(y_train_by_fold, "get"):
+        raise UnseededBenchmark(
+            "y_train_by_fold is required: pass {fold_id: training returns} so the "
+            "R2_OOS benchmark is seeded with each fold's training history"
+        )
+    missing = [
+        int(f) for f in predictions["fold_id"].unique()
+        if y_train_by_fold.get(int(f)) is None or len(y_train_by_fold[int(f)]) == 0
+    ]
+    if missing:
+        raise UnseededBenchmark(
+            f"no training returns for fold(s) {missing}; the benchmark would start cold"
+        )
+
+
 def per_fold_metrics(
     predictions: pd.DataFrame,
     threshold: float = DIRECTION_THRESHOLD,
-    y_train_by_fold: Optional[Dict[int, np.ndarray]] = None,
+    *,
+    y_train_by_fold: Dict[int, np.ndarray],
 ) -> pd.DataFrame:
     """One row of metrics per fold.
 
     Folds are evaluated separately rather than pooled, so that the summary can
     carry a standard deviation across folds instead of a single pooled number
-    that hides which fold did the work.
+    that hides which fold did the work. ``y_train_by_fold`` is required; see
+    :func:`require_training_returns`.
     """
+    require_training_returns(y_train_by_fold, predictions)
     rows = []
     for fold_id, block in predictions.groupby("fold_id", sort=True):
-        y_train = None if y_train_by_fold is None else y_train_by_fold.get(int(fold_id))
+        y_train = y_train_by_fold[int(fold_id)]
         row = {"fold_id": int(fold_id), "n": len(block)}
         metrics = _metrics_for_slice(
             block["close_t"].to_numpy(float),
@@ -397,7 +434,8 @@ def evaluate_predictions(
     predictions: pd.DataFrame,
     model_name: str = "Model",
     threshold: float = DIRECTION_THRESHOLD,
-    y_train_by_fold: Optional[Dict[int, np.ndarray]] = None,
+    *,
+    y_train_by_fold: Dict[int, np.ndarray],
     validate: bool = True,
 ) -> Dict[str, Any]:
     """Evaluate a standard result frame.
@@ -408,20 +446,20 @@ def evaluate_predictions(
     because the definition is ``sign(y_pred)`` -- there is no differencing, so
     concatenating folds introduces no boundary artefacts.
 
-    ``y_train_by_fold`` maps ``fold_id`` to that fold's training returns and
-    should be supplied whenever it is available. Without it the R2_OOS
-    benchmark starts cold, and its first few values are one- and
-    two-observation means. On a test period that opens with a volatile stretch
-    those are terrible forecasts, the benchmark's SSE inflates, and *every*
-    model scores an R2_OOS that is too high. On the AAPL fixture, seeding moves
-    the zero-return baseline from +0.087 to -0.005. The result carries
-    ``unseeded_benchmark`` so a caller cannot miss it.
+    ``y_train_by_fold`` maps ``fold_id`` to that fold's training returns and is
+    required. Without it the R2_OOS benchmark starts cold, its first values
+    are one- and two-observation means, and on a test period that opens with
+    a volatile stretch *every* model scores an R2_OOS that is too high: on
+    the AAPL fixture the zero-return baseline scores +0.087 cold against
+    -0.005 seeded. A missing or incomplete mapping raises
+    :class:`UnseededBenchmark` before anything is computed.
     """
     if validate:
         validate_predictions(predictions, name=model_name)
 
     predictions = predictions.reset_index(drop=True)
-    fold_metrics = per_fold_metrics(predictions, threshold, y_train_by_fold)
+    require_training_returns(y_train_by_fold, predictions)
+    fold_metrics = per_fold_metrics(predictions, threshold, y_train_by_fold=y_train_by_fold)
 
     close_t = predictions["close_t"].to_numpy(float)
     y_true = predictions["y_true"].to_numpy(float)
@@ -432,7 +470,7 @@ def evaluate_predictions(
     # pooled series instead would restart the expanding mean from nothing.
     benchmark = np.empty(len(predictions), dtype=float)
     for fold_id, block in predictions.groupby("fold_id", sort=True):
-        y_train = None if y_train_by_fold is None else y_train_by_fold.get(int(fold_id))
+        y_train = y_train_by_fold[int(fold_id)]
         benchmark[block.index.to_numpy()] = expanding_mean_benchmark(
             block["y_true"].to_numpy(float), y_train
         )
@@ -448,7 +486,6 @@ def evaluate_predictions(
         "per_fold": fold_metrics,
         "summary": summarize_across_folds(fold_metrics),
         "n_predictions": len(predictions),
-        "unseeded_benchmark": y_train_by_fold is None,
         "first_target_date": predictions["target_date"].iloc[0],
         "last_target_date": predictions["target_date"].iloc[-1],
     }
@@ -500,12 +537,6 @@ def print_evaluation(result: Dict[str, Any]) -> None:
         f"  R2_OOS (Campbell-Thom.): {pooled['r2_oos']:+7.5f}  pooled;  "
         f"{summary['r2_oos_mean']:+.5f} +/- {summary['r2_oos_std']:.5f} across folds"
     )
-    if result.get("unseeded_benchmark"):
-        print(
-            "    WARNING: benchmark not seeded with training returns, so its "
-            "first values are one- and two-observation means. R2_OOS is "
-            "biased upward; pass y_train_by_fold."
-        )
     print(f"  RMSE / MAE             : {pooled['rmse_bps']:6.1f} / "
           f"{pooled['mae_bps']:.1f} bps")
 

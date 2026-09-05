@@ -15,7 +15,10 @@ from baselines import (
 )
 from contracts import ContractViolation, align_predictions, validate_predictions
 from dataset import build_dataset
-from evaluate import directional_accuracy, evaluate_predictions, r2_oos
+from evaluate import (
+    UnseededBenchmark, directional_accuracy, evaluate_predictions, expanding_mean_benchmark,
+    per_fold_metrics, r2_oos,
+)
 from fetch_data import engineer_features
 from conftest import FIXTURE_PATH
 
@@ -108,27 +111,42 @@ class TestZeroReturn:
             y_train_by_fold=y_train_by_fold,
         )
         assert abs(result["pooled"]["r2_oos"]) < 0.05
-        assert result["unseeded_benchmark"] is False
 
-    def test_an_unseeded_benchmark_inflates_r2_oos(self, all_baselines, ds, folds):
-        """Why y_train_by_fold is not optional in practice.
+    def test_an_unseeded_benchmark_is_refused(self, all_baselines, ds, folds):
+        """Why y_train_by_fold is not optional, and is now not omittable.
 
         This fixture's test period opens on the March 2020 crash. With no
         training history the expanding mean's first forecasts are one- and
         two-observation means of double-digit moves, the benchmark's SSE
         inflates, and the zero-return baseline scores +0.087 instead of the
-        correct -0.005. Every model would be flattered the same way.
+        correct -0.005. That bias was found, fixed and flagged once, and it
+        recurred at an aggregation call site that never read the flag. The
+        evaluator now refuses to run without the seeds; the cold number is
+        reproduced here by building the cold benchmark by hand, so the size
+        of what the refusal prevents stays on record.
         """
         predictions = all_baselines["zero_return"]["predictions"]
         y_train_by_fold = {i: ds.y[train] for i, (train, _) in enumerate(folds)}
 
-        cold = evaluate_predictions(predictions, "cold", validate=False)
-        seeded = evaluate_predictions(
-            predictions, "seeded", y_train_by_fold=y_train_by_fold
-        )
+        with pytest.raises(TypeError):
+            evaluate_predictions(predictions, "omitted", validate=False)  # type: ignore[call-arg]
+        with pytest.raises(UnseededBenchmark):
+            evaluate_predictions(predictions, "none", validate=False, y_train_by_fold=None)
+        with pytest.raises(UnseededBenchmark):
+            partial = {k: v for k, v in y_train_by_fold.items() if k != 0}
+            evaluate_predictions(predictions, "partial", validate=False, y_train_by_fold=partial)
+        with pytest.raises(UnseededBenchmark):
+            aggregate_frame = predictions.copy()
+            per_fold_metrics(aggregate_frame, y_train_by_fold=None)
 
-        assert cold["unseeded_benchmark"] is True
-        assert cold["pooled"]["r2_oos"] > seeded["pooled"]["r2_oos"] + 0.05
+        seeded = evaluate_predictions(predictions, "seeded", y_train_by_fold=y_train_by_fold)
+        y_true = predictions["y_true"].to_numpy(float)
+        cold_benchmark = np.concatenate([
+            expanding_mean_benchmark(block["y_true"].to_numpy(float))
+            for _, block in predictions.groupby("fold_id", sort=True)
+        ])
+        cold_r2 = r2_oos(y_true, predictions["y_pred"].to_numpy(float), cold_benchmark)
+        assert cold_r2 > seeded["pooled"]["r2_oos"] + 0.05
         assert abs(seeded["pooled"]["r2_oos"]) < 0.05
 
     def test_directional_accuracy_is_the_down_day_rate(self, all_baselines):
