@@ -162,10 +162,16 @@ The two linear comparators (`src/linear_models.py`; `results/comparators/`)
 on the same thirty tickers: R²_OOS within 0.017 of zero by fold median on
 every ticker, positive on 12 (ridge) and 18 (logistic) of 30, which is what a
 forecast of the historical mean scores; DA − majority mean −0.48 and −0.28 pp;
-PT p < 0.05 on 5 and 4 of 30 against 1.5 expected (binomial p = 0.016 and
-0.061); Holm within model 0 and 1; Holm across all 90 direction tests of the
-three models, 0; alpha hits 1+1 and 0+2 of 30 (negative + positive), none
-surviving Holm. Paper §6.2 discusses the excess of uncorrected directional hits.
+PT p < 0.05 on 5 and 4 of 30 against 1.5 expected. The binomial
+reference assumes independent tests; a simulated null of equicorrelated statistics
+(`analysis/correlated_hit_null.py`, `results/hit_count_null.csv`) gives P = 0.016 / 0.091 / 0.106
+for the ridge's 5 at ρ = 0 / 0.3 / 0.5 and 0.032 at the correlation of the PT statistics
+measured by block bootstrap (0.04; the returns themselves correlate 0.36, but the
+statistic nets the market component out); 0.061 / 0.137 / 0.137 / 0.075 for the logistic's 4;
+and for the pooled 11 of 90, 0.005 independent, 0.126 at ρ_ticker 0.3 / ρ_model 0.8,
+0.016 at the measured 0.03 / 0.20. Holm within model 0 and 1; Holm across all 90 direction
+tests, 0; alpha hits 1+1 and 0+2 of 30 (negative + positive), none
+surviving Holm. Paper §6.2 discusses the excess of uncorrected directional hits under both nulls; the one within-model Holm survivor (logistic, NKE, +2.14 pp pooled) has a fold-median edge of −0.66 pp.
 
 Two PT hits against 1.5 expected is chance. The eight alpha hits look alarming
 until you check the sign: **all eight are t < −1.96**, none positive. The tree

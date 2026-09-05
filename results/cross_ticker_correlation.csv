@@ -1,0 +1,18 @@
+quantity,estimate,n_days
+"daily realised return, cross-ticker",0.35968232164503666,2295
+"daily realised sign, cross-ticker",0.20594948118620807,2295
+"daily direction hit, cross-ticker, Tree Ensemble",0.037033778523460785,2803
+"daily direction hit, cross-ticker, Ridge (returns)",0.1407420602827346,2803
+"daily direction hit, cross-ticker, Logistic (direction)",0.1328449726038835,2803
+"daily direction hit, cross-model within ticker, Tree Ensemble vs Ridge (returns)",0.18626151133768223,2784
+"daily direction hit, cross-model within ticker, Tree Ensemble vs Logistic (direction)",0.14414536085035828,2784
+"daily direction hit, cross-model within ticker, Ridge (returns) vs Logistic (direction)",0.5838530418818998,2784
+"per-ticker PT statistic, cross-model, Tree Ensemble vs Ridge (returns)",0.43534972864306704,30
+"per-ticker PT statistic, cross-model, Tree Ensemble vs Logistic (direction)",-0.12010654598696036,30
+"per-ticker PT statistic, cross-model, Ridge (returns) vs Logistic (direction)",0.1500299378513067,30
+"PT statistic, cross-ticker, Tree Ensemble (block bootstrap)",0.019498118157829494,400
+"PT statistic, cross-ticker, Ridge (returns) (block bootstrap)",0.040301838501465966,400
+"PT statistic, cross-ticker, Logistic (direction) (block bootstrap)",0.024660210400337227,400
+"PT statistic, cross-model within ticker, Tree Ensemble vs Ridge (returns) (block bootstrap)",0.1612205102683387,400
+"PT statistic, cross-model within ticker, Tree Ensemble vs Logistic (direction) (block bootstrap)",0.12689783715275588,400
+"PT statistic, cross-model within ticker, Ridge (returns) vs Logistic (direction) (block bootstrap)",0.321318971170846,400
