@@ -1,8 +1,20 @@
 """Build every figure from the committed artefacts, into docs/figures/.
 
-Reads results/ and docs/ only; retrains nothing; writes only PNGs. The AAPL
-set is rebuilt from the persisted per-fold predictions and the frozen CSV, so
-each picture is drawn from exactly the numbers in the results tables.
+Reads results/ and docs/ only; retrains nothing; writes only PNGs.
+
+Sources, by figure:
+- The AAPL headline set is rebuilt from results/headline/AAPL__frozen__seed42.parquet,
+  the per-fold predictions of the README section 3.1 run on docs/frozen_aapl_raw.csv
+  (written by analysis/freeze_headline_predictions.py). Its fold grid is Table 1's,
+  and headline_frames() asserts that the comparison table rebuilt from it equals
+  docs/baseline_after_refactor.csv, which is Table 1, before anything is drawn.
+- The cross-ticker figures come from the 30-ticker sweep under results/predictions/
+  and results/fold_diagnostics.csv, where every ticker sits on its own fetch grid
+  and no offset arises.
+- The seed-variance figure comes from results/seeds/, which the seed study ran on
+  the sweep's AAPL fetch cache. That grid opens about 50 trading days before
+  Table 1's; grid_offset() computes the exact figure from committed files and the
+  two figures that touch the sweep's AAPL run print it in their titles.
 
     python analysis/make_figures.py
 """
@@ -52,60 +64,105 @@ def frames_from_runs(runs: pd.DataFrame) -> dict:
     return out
 
 
-@functools.lru_cache(maxsize=1)
-def aapl_dataset():
-    """The AAPL dataset the sweep parquet was actually built from.
+FROZEN_CSV = REPO / "docs" / "frozen_aapl_raw.csv"
+TABLE_1 = REPO / "docs" / "baseline_after_refactor.csv"
+HEADLINE_DIR = REPO / "results" / "headline"
+SWEEP_DIR = REPO / "results" / "predictions"
+SWEEP_RAW = REPO / "results" / "raw"
 
-    This is results/raw/AAPL.csv, the sweep's own fetch cache -- NOT
-    docs/frozen_aapl_raw.csv. The two differ in a way that matters for fold
-    alignment: the frozen CSV is the pre-refactor pipeline's already-warmed-up
-    frame, so re-engineering it drops a second ~50-row warm-up (4144 -> 4094
-    rows), while the sweep cache was saved post-engineering and keeps them
-    (4144 -> 4143). Every fold boundary in the sweep therefore sits ~49 trading
-    days earlier than in the README section 3.1 headline run. Rebuilding from
-    the wrong file gives a 100% mismatch at fold 0; the assertion in
-    aapl_figures() guards against it.
-    """
-    sweep = REPO / "results/raw/AAPL.csv"
-    if not sweep.exists():
-        raise FileNotFoundError(
-            f"{sweep} is absent (it is a gitignored fetch cache). Regenerate it "
-            "with `python src/fetch_universe.py`; the AAPL figures must be built "
-            "from the same data as results/predictions/AAPL__full__seed42.parquet."
-        )
-    ds = build_dataset(pd.read_csv(sweep, parse_dates=["Date"]))
+
+def _dataset(csv: Path) -> tuple:
+    ds = build_dataset(pd.read_csv(csv, parse_dates=["Date"]))
     folds = WalkForwardSplitter(*FOLD_CFG).split(len(ds))
-
-    frozen = build_dataset(pd.read_csv(REPO / "docs/frozen_aapl_raw.csv", parse_dates=["Date"]))
-    f_folds = WalkForwardSplitter(*FOLD_CFG).split(len(frozen))
-    print(f"  AAPL data provenance: sweep cache {len(ds)} rows, fold-0 test from "
-          f"{str(ds.target_date[folds[0][1][0]])[:10]}; frozen CSV {len(frozen)} rows, "
-          f"fold-0 test from {str(frozen.target_date[f_folds[0][1][0]])[:10]} "
-          f"(offset {len(ds) - len(frozen)} rows)")
     return ds, folds, {i: ds.y[np.asarray(tr)] for i, (tr, _) in enumerate(folds)}
 
 
+@functools.lru_cache(maxsize=1)
+def frozen_dataset() -> tuple:
+    """Table 1's grid: docs/frozen_aapl_raw.csv, the headline run's input."""
+    return _dataset(FROZEN_CSV)
+
+
+@functools.lru_cache(maxsize=1)
+def sweep_dataset() -> tuple:
+    """The sweep's grid: results/raw/AAPL.csv, the fetch cache the 30-ticker
+    sweep and the seed study ran on. Gitignored. Only the seed figure needs it,
+    for the fold-seeded R2_OOS benchmark of runs that were made on that grid.
+    """
+    sweep = SWEEP_RAW / "AAPL.csv"
+    if not sweep.exists():
+        raise FileNotFoundError(
+            f"{sweep} is absent (a gitignored fetch cache); regenerate it with "
+            "`python src/fetch_universe.py`."
+        )
+    return _dataset(sweep)
+
+
+@functools.lru_cache(maxsize=1)
+def grid_offset() -> dict:
+    """How far the sweep's AAPL fold grid sits from Table 1's, from committed
+    files only: the sweep parquet's fold-0 opening date against the frozen
+    dataset's.
+
+    The frozen CSV is the pre-refactor pipeline's already-warmed-up frame, so
+    re-engineering it costs a second warm-up (4144 -> 4094 rows), while the
+    sweep cache was saved post-engineering and keeps those rows (4144 -> 4143).
+    Every sweep fold boundary is therefore earlier by that many trading days.
+    """
+    ds, folds, _ = frozen_dataset()
+    dates = pd.to_datetime(pd.Series(np.asarray(ds.target_date)))
+    frozen_open = dates.iloc[folds[0][1][0]]
+    sweep = load_runs(str(SWEEP_DIR))
+    sweep_open = sweep.loc[(sweep["ticker"] == "AAPL") & (sweep["fold_id"] == 0), "target_date"].min()
+    rows = int(((dates >= sweep_open) & (dates < frozen_open)).sum())
+    return {"sweep_open": str(sweep_open)[:10], "frozen_open": str(frozen_open)[:10], "rows": rows}
+
+
+def sweep_grid_note() -> str:
+    o = grid_offset()
+    return (f"sweep fold grid: fold 0 opens {o['sweep_open']}, {o['rows']} trading days "
+            f"before Table 1's {o['frozen_open']}")
+
+
 # ---------------------------------------------------------------------------
-# AAPL headline set, from results/predictions/AAPL__full__seed42.parquet
+# AAPL headline set, from results/headline/AAPL__frozen__seed42.parquet (Table 1's run)
 # ---------------------------------------------------------------------------
 
 
-def aapl_figures() -> list:
-    runs = load_runs(str(REPO / "results/predictions"))
-    runs = runs[runs["ticker"] == "AAPL"]
+def headline_frames() -> tuple:
+    """The headline run's frames, checked against its dataset and against Table 1.
+
+    Two assertions, both on committed files. The parquet's fold-0 realised
+    returns must equal the frozen dataset's, so the fold grid is the one Table 1
+    was computed on; and the comparison table rebuilt here must equal
+    docs/baseline_after_refactor.csv, which is Table 1, to the printed digits.
+    """
+    runs = load_runs(str(HEADLINE_DIR))
+    runs = runs[(runs["ticker"] == "AAPL") & (runs["regime"] == "frozen")]
     frames = frames_from_runs(runs)
-    ds, folds, y_train = aapl_dataset()
+    ds, folds, y_train = frozen_dataset()
 
-    # The parquet and the rebuilt dataset must describe the same rows.
     tree0 = frames["Tree Ensemble"]
     f0 = tree0[tree0["fold_id"] == 0]
-    np.testing.assert_allclose(f0["y_true"].to_numpy(), ds.y[folds[0][1]], err_msg="parquet/dataset drift")
+    np.testing.assert_allclose(f0["y_true"].to_numpy(), ds.y[folds[0][1]],
+                               err_msg="headline parquet / frozen dataset drift")
 
     window = common_evaluation_window(frames)
     primary = restrict_all(frames, window)
-    subtitle = f"AAPL, {window.describe()}, 12 folds, seed 42"
     evaluations = [evaluate_predictions(p, n, y_train_by_fold=y_train) for n, p in primary.items()]
     comparison = compare_evaluations(evaluations)
+    table1 = pd.read_csv(TABLE_1).set_index("Model")
+    pd.testing.assert_frame_equal(comparison.loc[table1.index, table1.columns], table1,
+                                  check_dtype=False, check_names=False, rtol=0, atol=1e-9)
+    print(f"  AAPL headline set: {len(runs)} rows from {HEADLINE_DIR.relative_to(REPO)}, "
+          f"fold 0 opens {str(f0['target_date'].min())[:10]}; comparison table equals "
+          f"{TABLE_1.relative_to(REPO)} (Table 1)")
+    return ds, folds, y_train, primary, window, evaluations, comparison
+
+
+def aapl_figures() -> list:
+    ds, folds, y_train, primary, window, evaluations, comparison = headline_frames()
+    subtitle = f"AAPL, {window.describe()}, 12 folds, seed 42, frozen CSV (Table 1 grid)"
     aligned = align_predictions(primary)
     economics = backtest_table(primary, benchmark_predictions=primary["Zero return"])
     meta_name = next(n for n in primary if "+VIX" in n)
@@ -191,16 +248,25 @@ def fig_cross_ticker() -> Path:
             head = f"{int((v > 0).sum())}/{len(v)} tickers above zero"
         ax.set_title(f"{head}\nmean {v.mean():+.3f}, sd {sd:.3f}", fontsize=9)
         ax.legend(loc="upper right", fontsize=7)
-    fig.suptitle("Tree Ensemble across 30 US large caps, 12 folds each, seed 42", fontsize=11)
+    fig.suptitle("Tree Ensemble across 30 US large caps, 12 folds each, seed 42\n"
+                 f"AAPL ringed is the sweep's own run, not Table 1's ({sweep_grid_note()})",
+                 fontsize=10)
     fig.tight_layout()
     return _save(fig, OUT / "cross_ticker_null.png")
 
 
-def fig_seed_variance() -> Path:
-    """Five seeds per neural architecture on AAPL: seed noise vs architecture gap."""
+def fig_seed_variance() -> Path | None:
+    """Five seeds per neural architecture on AAPL: seed noise vs architecture gap.
+
+    The seed study ran on the sweep's fetch cache, so its benchmark needs that
+    grid's training returns, and its title carries the offset from Table 1.
+    """
+    if not (SWEEP_RAW / "AAPL.csv").exists():
+        print("  seed_variance skipped: results/raw/AAPL.csv absent (python src/fetch_universe.py)")
+        return None
     _style()
     runs = load_runs(str(REPO / "results/seeds"))
-    _, _, y_train = aapl_dataset()
+    _, _, y_train = sweep_dataset()
     rows = []
     for (model, seed), block in runs.groupby(["model", "seed"]):
         block = block.sort_values("target_date").reset_index(drop=True)
@@ -224,7 +290,9 @@ def fig_seed_variance() -> Path:
         ax.set_xticklabels(sorted(d["model"].unique()))
         ax.set_ylabel(label)
         ax.set_title(f"{label}: 5 seeds each (bar = mean)", fontsize=9)
-    fig.suptitle("Seed variance vs architecture difference — AAPL, 12 folds, seeds 0-4", fontsize=11)
+    fig.suptitle("Seed variance vs architecture difference — AAPL, 12 folds, seeds 0-4\n"
+                 f"run on the sweep's fetch cache, not the frozen CSV ({sweep_grid_note()})",
+                 fontsize=10)
     fig.tight_layout()
     return _save(fig, OUT / "seed_variance.png")
 
@@ -273,10 +341,8 @@ def fig_shift_vs_r2() -> Path | None:
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     written = aapl_figures()
-    written += [fig_before_after(), fig_cross_ticker(), fig_seed_variance()]
-    extra = fig_shift_vs_r2()
-    if extra:
-        written.append(extra)
+    written += [fig_before_after(), fig_cross_ticker()]
+    written += [p for p in (fig_seed_variance(), fig_shift_vs_r2()) if p]
     print(f"\n{len(written)} figures written to {OUT.relative_to(REPO)}/")
     for p in written:
         print(f"  {p.name:<40} {p.stat().st_size / 1024:6.0f} KB")

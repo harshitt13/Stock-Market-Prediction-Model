@@ -92,7 +92,7 @@ State these as the numbered list. They are, in descending strength:
    degradation, with the link tested rather than asserted.
 5. **A seed-variance result** showing architecture comparisons are not
    identifiable at one seed.
-6. **An open, tested artifact**: 329 tests, offline fixtures, mutation-tested
+6. **An open, tested artifact**: 331 tests, offline fixtures, mutation-tested
    leakage detection, frozen data for the headline figure.
 
 ### 4. Protocol artifacts (this is the core section)
