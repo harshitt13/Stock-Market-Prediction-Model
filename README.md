@@ -601,6 +601,7 @@ python analysis/cross_ticker_sweep.py            # section 3.2
 python analysis/seed_variance.py                 # section 3.3
 python analysis/alpha_correction_and_window.py   # section 3.4
 python analysis/distribution_shift_and_exposure.py  # section 3.5
+python analysis/build_paper.py                   # docs/paper/build/paper_full.md and .docx
 ```
 
 `results/predictions/`, `results/seeds/` and `results/headline/` are committed,
