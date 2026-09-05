@@ -255,7 +255,68 @@ lose, not *why they have no directional signal*.
 
 ---
 
-## 4. System architecture
+## 4. Figures
+
+Every figure below is drawn from the numbers in the results tables — the
+committed per-fold predictions under `results/`, the frozen comparison CSVs
+under `docs/`, and nothing else. No figure computes a metric of its own; where
+one needs a derived series (an equity curve from daily returns) it calls the
+same evaluation function the tables used, on the same inputs, so a picture
+cannot disagree with its table.
+
+Two ways they are produced:
+
+- **Every pipeline run** writes the per-run set to `images/` (gitignored,
+  regenerated each time) unless `--no-plots` is passed.
+- **`python analysis/make_figures.py`** rebuilds the committed set below into
+  `docs/figures/` from `results/` and `docs/`, without retraining anything.
+
+> **Provenance note — read this before comparing a figure to Table 1.**
+> The AAPL figures are built from `results/predictions/AAPL__full__seed42.parquet`,
+> which the 30-ticker sweep produced from its own fetch. Table 1 in §3.1 comes
+> from the separately frozen `docs/frozen_aapl_raw.csv`. The two contain the
+> same 4144 trading days, but the frozen file is the pre-refactor pipeline's
+> already-warmed-up frame, so re-engineering it costs a second ~50-row warm-up
+> (4144 → 4094 rows) while the sweep cache was saved post-engineering and keeps
+> them (4144 → 4143). **Every fold boundary in the sweep therefore sits 49
+> trading days earlier than in Table 1** — fold 0's test window opens
+> 2014-03-19 in the sweep and 2014-05-29 in the frozen run. The figures' AAPL
+> numbers (e.g. Tree Ensemble DA − majority = −2.39) are the §3.2 sweep numbers,
+> not the §3.1 ones (−1.19). Same ticker, same code, offset fold grid;
+> `make_figures.py` prints the offset every time it runs and asserts the
+> parquet and the rebuilt dataset agree before drawing anything.
+
+### 4.1 The headline
+
+| | |
+|---|---|
+| ![before/after](docs/figures/before_after.png) | **`before_after.png`** — The same models on identical frozen data. Left: R² on the *price* target, where the naive baseline scores 0.9992 and beats every model. Right: R²_OOS on the *return* target, where nothing is above zero. `Random sign` is drawn off-scale so it cannot squash the panel. |
+
+### 4.2 AAPL, 2520 common-window days, 12 folds, seed 42
+
+| figure | what it shows |
+|---|---|
+| [`aapl_predicted_vs_realised.png`](docs/figures/aapl_predicted_vs_realised.png) | Predicted vs realised next-day return, one panel per model. **Every model is a horizontal band.** Correlations are −0.010 to +0.026; prediction spread is 2–38% of realised spread. This is the central picture. |
+| [`aapl_prediction_dispersion.png`](docs/figures/aapl_prediction_dispersion.png) | Distribution of each model's predictions beside the realised distribution. The models that pick a level rather than forecast collapse to a spike. |
+| [`aapl_model_comparison.png`](docs/figures/aapl_model_comparison.png) | Directional accuracy minus the majority-class rate, and R²_OOS, per model, with zero lines. Models first, baselines last. |
+| [`aapl_alpha_beta.png`](docs/figures/aapl_alpha_beta.png) | Annualised alpha with its t-statistic (red if \|t\| > 1.96 — none is) and beta against buy-and-hold. `Historical mean` has beta 1.000: it *is* the market. |
+| [`aapl_equity_curves.png`](docs/figures/aapl_equity_curves.png) | Net-of-cost growth of 1 for each long/flat strategy against buy-and-hold, log scale. The meta and historical-mean curves sit on buy-and-hold; the tree's flat stretch through 2020–21 is its time out of the market. |
+| [`aapl_r2_oos_by_fold.png`](docs/figures/aapl_r2_oos_by_fold.png) | R²_OOS per walk-forward fold, per model. Shows the instability that the pooled number hides. |
+| [`aapl_da_minus_majority_by_fold.png`](docs/figures/aapl_da_minus_majority_by_fold.png) | The same for directional accuracy minus majority. |
+| [`aapl_calibration.png`](docs/figures/aapl_calibration.png) | Empirical coverage of the 95% interval per fold, quantiles from earlier folds only, against the nominal line. |
+| [`aapl_walk_forward_folds.png`](docs/figures/aapl_walk_forward_folds.png) | Price history with each fold's test span shaded: 12 expanding folds, test always after train. |
+
+### 4.3 Beyond one stock
+
+| figure | what it shows |
+|---|---|
+| [`cross_ticker_null.png`](docs/figures/cross_ticker_null.png) | Tree Ensemble on 30 US large caps: DA − majority, R²_OOS and t(alpha) as strip plots, AAPL ringed. **0/30 above zero on R²_OOS; 0/30 with t > +1.96; 8/30 with t < −1.96.** |
+| [`seed_variance.png`](docs/figures/seed_variance.png) | Five seeds each of BiLSTM and Transformer. The Transformer's R²_OOS straddles zero across seeds; the DA clouds overlap. Architecture is not distinguishable from seed noise. |
+| [`shift_vs_r2_oos.png`](docs/figures/shift_vs_r2_oos.png) | Per-fold R²_OOS against the fold's train-vs-test KS statistic, all 357 fold-ticker pairs, shifted folds in red with the OLS fit. Distribution shift predicts the *magnitude* error (slope −1.58, t = −6.84) — but the fit's **R² = 0.116** is printed on the figure so the ceiling is visible: shift explains about a ninth of the R²_OOS variance and almost none of the directional error. Requires `results/raw/` to rebuild. |
+
+---
+
+## 5. System architecture
 
 ```mermaid
 flowchart TB
@@ -329,7 +390,7 @@ flowchart TB
     B1 -.-> VAL
 ```
 
-### 4.1 Why the meta-learner skips early folds
+### 5.1 Why the meta-learner skips early folds
 
 ```mermaid
 flowchart LR
@@ -365,7 +426,7 @@ volatility against 1.92% elsewhere.
 
 ---
 
-## 5. The row contract
+## 6. The row contract
 
 Everything depends on one convention, enforced by `src/contracts.py`.
 
@@ -391,7 +452,7 @@ Price is a display quantity only: `close_hat[t+1] = close_t[t] * exp(y_hat[t])`.
 
 ---
 
-## 6. Leakage controls
+## 7. Leakage controls
 
 | Control | Mechanism |
 |---|---|
@@ -409,11 +470,11 @@ Price is a display quantity only: `close_hat[t+1] = close_t[t] * exp(y_hat[t])`.
 
 ---
 
-## 7. Limitations
+## 8. Limitations
 
 These are material and are not worked around.
 
-### 7.1 Annual refit only
+### 8.1 Annual refit only
 
 Models are refitted **once per fold — once per year**. A model trading in
 May 2026 was last fitted on data ending June 2025. Real deployment would refit
@@ -423,7 +484,7 @@ distribution-shift analysis shows a third of folds train on a materially
 different return distribution from the one they are scored on, and a staler
 model suffers more. **The direction of this bias is against the models.**
 
-### 7.2 Survivorship bias
+### 8.2 Survivorship bias
 
 The 30 tickers are all names that still trade today. Companies delisted,
 acquired or bankrupted over 2010–2026 are absent. This biases every
@@ -431,7 +492,7 @@ cross-sectional aggregate **upward** — the surviving universe outperformed. Th
 sweep prints this warning on every run. Fixing it requires point-in-time index
 constituents including delisted names, which this project does not have.
 
-### 7.3 Other constraints
+### 8.3 Other constraints
 
 | Limitation | Detail |
 |---|---|
@@ -445,7 +506,7 @@ constituents including delisted names, which this project does not have.
 
 ---
 
-## 8. Reproducibility
+## 9. Reproducibility
 
 Every number in section 3.1 comes from one command on frozen data.
 
@@ -493,7 +554,7 @@ regenerable).
 
 ---
 
-## 9. Repository layout
+## 10. Repository layout
 
 | Path | Purpose |
 |---|---|
@@ -514,7 +575,7 @@ regenerable).
 
 ---
 
-## 10. Usage
+## 11. Usage
 
 ```bash
 # Evaluate on live data
@@ -549,7 +610,7 @@ python src/main.py --ticker AAPL --demo-forecast 30
 
 ---
 
-## 11. Case studies
+## 12. Case studies
 
 Flaws found and fixed. Each produced plausible numbers rather than a crash,
 which is what made them dangerous.
@@ -574,7 +635,7 @@ which is what made them dangerous.
 
 ---
 
-## 12. Disclaimer
+## 13. Disclaimer
 
 Stock predictions are inherently probabilistic and subject to structural regime
 shifts. This model operates purely on technical and macro features, omitting

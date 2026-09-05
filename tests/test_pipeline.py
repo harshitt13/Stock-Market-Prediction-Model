@@ -316,3 +316,18 @@ class TestSingleEvaluationWindow:
     def test_economics_table_has_no_nan(self, result):
         output, _ = result
         assert not output["economics"].isna().any().any()
+
+
+def test_per_run_figures_render_from_the_pipeline_result(result, tmp_path):
+    """The images/ set renders straight from run_pipeline's return dict.
+
+    Reuses the module-scoped pipeline run, so this costs no extra training;
+    it is what --no-plots skips and what every real run does.
+    """
+    from figures import render_run_figures
+
+    output, _ = result
+    assert "cost_bps" in output
+    written = render_run_figures(output, tmp_path, ticker="AAPL")
+    assert len(written) >= 9
+    assert all(p.stat().st_size > 1000 for p in written)

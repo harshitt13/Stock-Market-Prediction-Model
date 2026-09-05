@@ -47,6 +47,7 @@ from meta_ensemble import (
     scale_for_horizon,
     vix_tercile_weights,
 )
+from figures import render_run_figures
 from model_utils import DEMO_FORECAST_CAVEAT
 from transformer_model import train_transformer_model
 from tree_model import train_tree_model
@@ -337,14 +338,12 @@ def run_pipeline(
         demo.to_csv("data/combined_predictions.csv", index=False)
         print(f"\n  Demo forecast written. {DEMO_FORECAST_CAVEAT}")
 
-    if make_plots:
-        _make_plots(dataset, folds, base_results, aligned, comparison)
 
     print("\n" + "=" * 72)
     print("  PIPELINE COMPLETE - primary metrics are in return space")
     print("=" * 72)
 
-    return {
+    output: Dict[str, Any] = {
         "raw": raw,
         "dataset": dataset,
         "folds": folds,
@@ -362,7 +361,14 @@ def run_pipeline(
         "window": window,
         "primary_predictions": primary,
         "secondary_comparison_df": secondary,
+        "cost_bps": cost_bps,
     }
+
+    if make_plots:
+        written = render_run_figures(output, "images", ticker=ticker)
+        print(f"  {len(written)} figures written to images/")
+
+    return output
 
 
 def _full_range_table(all_predictions, window, y_train_by_fold):
@@ -427,21 +433,6 @@ def _collect_demo_forecasts(base_results, gating, calibration) -> Optional[pd.Da
     return combined
 
 
-def _make_plots(dataset, folds, base_results, aligned, comparison) -> None:
-    """Charts. Kept deliberately thin; they are not evidence."""
-    try:
-        from visualize import plot_feature_importance, plot_walk_forward_folds
-
-        os.makedirs("images", exist_ok=True)
-        plot_walk_forward_folds(
-            dataset.feature_date, dataset.close_t, folds
-        )
-        plot_feature_importance(
-            base_results["tree"]["feature_names"],
-            base_results["tree"]["mean_feature_importances"],
-        )
-    except Exception as exc:  # pragma: no cover - plotting is cosmetic
-        print(f"  Plotting skipped: {exc}")
 
 
 # ---------------------------------------------------------------------------
