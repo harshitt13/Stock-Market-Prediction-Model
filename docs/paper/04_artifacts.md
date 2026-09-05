@@ -56,6 +56,12 @@ run on the same file with the same folds, giving
 | ARIMA (5,1,0) before; (5,0,0) on returns after | 0.8876 | 16.30 | −0.00753 |
 | Naive zero-change before; zero return after | **0.9992** | **1.23** | −0.00276 |
 
+The "after" column is the pooled R²_OOS. For the same meta-learner the
+across-fold median is +0.0011 and the across-fold mean −0.0022 ±
+0.0109 (§6.1; `results/fold_aggregates_headline.csv`); under no
+aggregation is it distinguishable from zero, and the contrast with 0.9627
+is the same under all three.
+
 The naive baseline beat every model on both of the old protocol's metrics,
 and the protocol could not show it because the table had no row that said
 "this is what doing nothing scores". The best model's R² of 0.9627 became

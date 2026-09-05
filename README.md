@@ -25,9 +25,9 @@ real arithmetic on a broken target.
 | | Before (price target) | After (return target) |
 |---|---|---|
 | Target | next-day **close price** | next-day **log return** |
-| Best model, primary metric | R² = **0.9627** | R²_OOS = **−0.0003** |
-| Naive / zero-return baseline | R² = **0.9992**, MAPE **1.23%** | R²_OOS = **−0.0028** |
-| Does the best model beat the baseline? | **No** — and the metric hid it | **No** — and the metric shows it |
+| Best model, primary metric | R² = **0.9627** | R²_OOS = **+0.0011** (fold median; mean −0.0022 ± 0.0109, pooled −0.0003) |
+| Naive / zero-return baseline | R² = **0.9992**, MAPE **1.23%** | R²_OOS = **−0.0023** (fold median; pooled −0.0028) |
+| Does the best model beat the baseline? | **No** — and the metric hid it | **Not distinguishably** — a thousandth above a benchmark at zero, with a fold sd of 0.011 and DM p = 0.47 |
 
 Both runs use *identical frozen data* (`docs/frozen_aapl_raw.csv`) and an
 identical 12-fold configuration.
@@ -80,20 +80,25 @@ credible.**
 ### 3.1 Table 1 — AAPL headline
 
 AAPL, 2010-03-16 → 2026-09-03, 12 expanding walk-forward folds, common
-evaluation window of 2520 forecast days (2016-05-27 → 2026-06-05).
+evaluation window of 2520 forecast days (2016-05-27 → 2026-06-05). R²_OOS is
+reported three ways from the same per-fold series: the **fold median** is the
+headline, the fold mean ± sd shows the spread, and the pooled value (a
+variance-weighted ratio that the worst fold dominates; see section 8.3) is
+secondary. `results/fold_aggregates_headline.csv`,
+`python analysis/fold_aggregates.py`.
 
-| Model | DA (%) | Majority (%) | DA − maj | PT p | R²_OOS | RMSE (bps) |
-|---|---|---|---|---|---|---|
-| Tree Ensemble | 52.82 | 54.01 | −1.19 | 0.0586 | −0.02037 | 183.4 |
-| BiLSTM ᵃ | 52.47 | 54.01 | −1.54 | 0.7159 | −0.00499 | 182.0 |
-| Transformer ᵃ | 52.60 | 54.01 | −1.41 | 0.7065 | +0.00102 | 181.5 |
-| Hybrid meta (+VIX) ᵇ | 52.65 | 54.01 | −1.37 | 0.7480 | −0.00029 | 181.6 |
-| Hybrid meta (no VIX) ᵇ | 52.30 | 54.01 | −1.71 | 0.5926 | −0.00197 | 181.8 |
-| Zero return | 45.99 | 54.01 | −8.02 | — | −0.00276 | 181.8 |
-| Historical mean | 54.01 | 54.01 | 0.00 | — | 0.00000 | 181.6 |
-| AR(1) returns | 53.71 | 54.01 | −0.30 | 0.2355 | −0.00347 | 181.9 |
-| ARIMA(5,0,0) returns | 52.05 | 54.01 | −1.96 | 0.8962 | −0.00753 | 182.3 |
-| Random sign | 50.26 | 54.01 | −3.75 | 0.2745 | −0.89480 | 249.9 |
+| Model | DA (%) | Majority (%) | DA − majority (pp) | PT p | R²_OOS, fold median | R²_OOS, fold mean ± sd | R²_OOS, pooled | RMSE (bps) |
+|---|---|---|---|---|---|---|---|---|
+| Tree Ensemble | 52.82 | 54.01 | −1.19 | 0.0586 | **−0.0081** | −0.0152 ± 0.0326 | −0.02037 | 183.4 |
+| BiLSTM ᵃ | 52.47 | 54.01 | −1.54 | 0.7159 | **−0.0009** | −0.0043 ± 0.0113 | −0.00499 | 182.0 |
+| Transformer ᵃ | 52.60 | 54.01 | −1.41 | 0.7065 | **−0.0003** | +0.0011 ± 0.0074 | +0.00102 | 181.5 |
+| Hybrid meta (+VIX) ᵇ | 52.65 | 54.01 | −1.37 | 0.7480 | **+0.0011** | −0.0022 ± 0.0109 | −0.00029 | 181.6 |
+| Hybrid meta (no VIX) ᵇ | 52.30 | 54.01 | −1.71 | 0.5926 | **+0.0010** | −0.0016 ± 0.0120 | −0.00197 | 181.8 |
+| Zero return | 45.99 | 54.01 | −8.02 | — | **−0.0023** | −0.0037 ± 0.0063 | −0.00276 | 181.8 |
+| Historical mean | 54.01 | 54.01 | 0.00 | — | **0.0000** | 0.0000 ± 0.0000 | 0.00000 | 181.6 |
+| AR(1) returns | 53.71 | 54.01 | −0.30 | 0.2355 | **−0.0027** | −0.0028 ± 0.0063 | −0.00347 | 181.9 |
+| ARIMA(5,0,0) returns | 52.05 | 54.01 | −1.96 | 0.8962 | **−0.0082** | −0.0066 ± 0.0101 | −0.00753 | 182.3 |
+| Random sign | 50.26 | 54.01 | −3.75 | 0.2745 | **−0.8630** | −1.1199 ± 0.5787 | −0.89480 | 249.9 |
 
 > **ᵃ Single seed (42) drawn from a distribution measured over 5 seeds.**
 >
@@ -102,9 +107,11 @@ evaluation window of 2520 forecast days (2016-05-27 → 2026-06-05).
 > | BiLSTM range | 51.46 – 53.91 | −0.0102 – −0.0032 | 0.014 – 0.893 |
 > | Transformer range | 52.27 – 52.95 | −0.0106 – **+0.0010** | 0.201 – 0.696 |
 >
-> The Transformer's `+0.00102` is the **only** positive R²_OOS in the table, and
-> its seed range **crosses zero**. It is seed 42 landing on one side of a
-> distribution straddling zero, not a positive result.
+> Under the pooled aggregation the Transformer's +0.00102 was the only positive
+> R²_OOS; under the fold median it is −0.0003 and the two meta rows are
+> +0.0011 and +0.0010. Which row sits a thousandth above zero depends on the
+> aggregation, and every one of them is inside a seed range or a fold sd that
+> **crosses zero**. None is a positive result.
 >
 > **ᵇ Single seed, range not measured.** The meta-learner's inputs are the
 > base-model predictions, so it inherits their seed variance and adds the
@@ -131,13 +138,14 @@ Tree Ensemble across all 30:
 | | mean | median | sd | min | max |
 |---|---|---|---|---|---|
 | DA − majority (pp) | −2.17 | −2.41 | 1.33 | −4.16 | **+0.15** |
-| R²_OOS | −0.116 | −0.096 | 0.074 | −0.343 | **−0.032** |
+| R²_OOS, pooled | −0.116 | −0.096 | 0.074 | −0.343 | **−0.032** |
+| **R²_OOS, fold median** | **−0.047** | −0.042 | 0.021 | −0.107 | **−0.014** |
 | PT p-value | 0.440 | 0.408 | 0.312 | 0.021 | 0.932 |
 | t(alpha) | −0.84 | −0.64 | 1.12 | −2.64 | +0.99 |
 
 | | count |
 |---|---|
-| Tickers with R²_OOS > 0 | **0 / 30** |
+| Tickers with R²_OOS > 0 | **0 / 30** — pooled, fold mean and fold median alike (`results/fold_aggregates_sweep.csv`) |
 | Tickers with t(alpha) > 1.96 | **0 / 30** |
 | Tickers beating majority class | 3 / 30 (by ≤ 0.15pp) |
 
@@ -520,6 +528,7 @@ constituents including delisted names, which this project does not have.
 | **No transaction-cost model beyond a flat spread** | 7.5bps round-trip, no market impact, no borrow cost for shorts. |
 | **Long/flat only in reported results** | Long/short is implemented but not the reported configuration. |
 | **12 folds, not 57** | The frozen comparison uses `--test-size 252` for tractability. The default 63-day config gives 57 folds and takes ~11–45h per run. |
+| **Pooled R²_OOS depends on where the fold boundaries fall** | Same AAPL tree, same code, same seed: pooled R²_OOS −0.025 on the frozen grid and −0.121 on the sweep grid (49 days earlier). The data is not the cause (`results/grid_vs_data.csv`); one fold whose boundary sits on the March 2020 low is. Across ten grid offsets the pooled value ranges over 0.089, the fold median over 0.029 (`results/grid_offset_sweep.csv`). The cross-ticker pooled mean is grid-conditional (−0.122 vs −0.032 on five tickers); the 0/30 null is not (`results/grid_conditional_tickers.csv`). |
 | **Recursive multi-step forecasting is a demo** | `--demo-forecast` is excluded from every metric. Each step feeds a synthetic bar back into the features and errors compound. |
 
 ---
