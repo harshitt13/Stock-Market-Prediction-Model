@@ -318,15 +318,22 @@ reported: with the VIX level as a fourth input (`Hybrid meta (+VIX)`) and
 without it (`Hybrid meta (no VIX)`). "Gating" is tested, not assumed: the two
 variants are compared by a Diebold-Mariano test on their error series
 (`compare_vix_gating`), and base-model weights refitted within VIX terciles are
-reported as a diagnostic (`vix_tercile_weights`). **[unsourced]**: the penalty
-values that `RidgeCV` selected in the headline run are printed to the console
-and not written to any committed file, so the statement elsewhere that they
-lay at 100 to 1000 cannot be cited to an artefact here.
+reported as a diagnostic (`vix_tercile_weights`). The penalty `RidgeCV`
+selected in each fold of the headline run is committed
+(`results/headline/AAPL__frozen__seed42_meta_fits.csv`, written by
+`analysis/persist_meta_fits.py`, which refits both variants from the stored
+base predictions and asserts the refit reproduces the parquet's meta
+predictions exactly). Over the ten fitted folds the +VIX variant chose 10³
+three times, 10⁴ four times and 10⁶, the top of the grid, three times; the
+no-VIX variant chose 10³ six times, 10⁴ three times and 10⁶ once. The only
+tuned component in the pipeline therefore chose heavy shrinkage in every
+fold and, in four fold-fits, the heaviest the grid allowed.
 
 **Software.** The pipeline is Python with pandas, NumPy, scikit-learn,
-XGBoost, PyTorch, statsmodels, SciPy and Optuna (`requirements.txt`).
-**[unsourced]**: `requirements.txt` pins no versions, so the library versions
-behind the committed results are not recorded in an artefact.
+XGBoost, PyTorch, statsmodels, SciPy and Optuna (`requirements.txt`, the
+unpinned install list). The exact versions in the environment that produced
+the committed results are recorded in `requirements-lock.txt`, a `pip freeze`
+of that environment.
 
 ## 5.6 Baselines
 
@@ -437,11 +444,13 @@ explain the magnitude of the error, not its sign.
 | `results/predictions/` | sweep coverage: 30 tickers, which carry ten models and which six, first and last forecast days, fold counts |
 | `results/fold_diagnostics.csv` | sweep fold sizes; the 357 fold-ticker pairs |
 | `results/seeds/` | the seed study's models, seeds and folds |
+| `results/headline/AAPL__frozen__seed42_meta_fits.csv` | the ridge penalty, intercept and coefficients the meta-learner fitted in each fold |
+| `requirements-lock.txt` | library versions of the environment behind the committed results |
 | `tests/fixtures/aapl_raw.csv` | the fixture: rows, span; nine folds and 420 days under 400/60/60 |
 | `src/fetch_data.py`, `src/dataset.py`, `src/contracts.py`, `src/walk_forward.py` | data source, features, contract, splitter |
 | `src/tree_model.py`, `src/lstm_model.py`, `src/transformer_model.py`, `src/meta_ensemble.py`, `src/model_utils.py`, `src/baselines.py` | every model and baseline setting |
 | `src/evaluate.py`, `src/backtest.py`, `src/experiments.py` | every metric definition |
-| `src/main.py`, `src/fetch_universe.py`, `seed_study.py`, `analysis/ridge_grid_and_tree.py`, `analysis/alpha_correction_and_window.py`, `analysis/make_figures.py` | defaults, fetch window, seed study, fixture configuration, grid offset |
+| `src/main.py`, `src/fetch_universe.py`, `seed_study.py`, `analysis/ridge_grid_and_tree.py`, `analysis/alpha_correction_and_window.py`, `analysis/make_figures.py`, `analysis/persist_meta_fits.py` | defaults, fetch window, seed study, fixture configuration, grid offset, meta-fit persistence |
 | `tests/test_leakage.py`, `tests/test_leakage_mutations.py` | truncation points, correlation bound, the six injected leaks |
 | `README.md` §3.1, §6, §7, §8, §9 | common window dates, contract test, observed maximum correlation, test count, limitations, SHA-256 and runtime |
 | `REFACTOR_PLAN.md` §1 | the row contract, reproduced |
