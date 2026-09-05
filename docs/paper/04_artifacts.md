@@ -321,13 +321,16 @@ the sweep's fetch cache, see §5.4 for the grid offset). Two of the
 project's apparent positive findings dissolve:
 
 - **The Transformer's R²_OOS changes sign across seeds**, from −0.0106 to
-  +0.0010 (README §3.3; commit `3fa7f8b`). The headline run's "only model
-  with positive R²_OOS" (Transformer, +0.00102, `docs/baseline_after_refactor.csv`)
-  is seed 42 landing on one side of a distribution that straddles zero.
+  +0.0010 (README §3.3; commit `3fa7f8b`). The Transformer's +0.00102
+  (`docs/baseline_after_refactor.csv`), the only positive pooled R²_OOS
+  among the original ten models of Table 1 (the ridge comparator added
+  later scores +0.0012, §6.1), is seed 42 landing on one side of a
+  distribution that straddles zero.
 - **BiLSTM seed 4 reports a Pesaran-Timmermann p of 0.0137** with
   directional accuracy 0.43 points above its majority class, the only
-  configuration anywhere in this project to beat its majority class with a
-  significant directional statistic. Its other four seeds give p = 0.329,
+  neural configuration in this project to beat its majority class with a
+  significant directional statistic (the linear comparators' directional
+  hits are treated in §6.2). Its other four seeds give p = 0.329,
   0.521, 0.708 and 0.893; the five Transformer seeds give 0.201 to 0.696
   (recomputed from `results/seeds/` with `src/evaluate.py`; README §3.3).
   The seed study ran ten tests, two architectures by five seeds, so the

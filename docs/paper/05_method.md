@@ -187,7 +187,7 @@ the grounds that anything higher means the target has leaked in
 `SP500_Return_1d` (README §7). The fixture on which these tests run is 1008
 raw rows of AAPL, 2018-01-02 to 2021-12-31 (`tests/fixtures/aapl_raw.csv`),
 so the suite is offline; the data client is imported lazily and a subprocess
-test asserts it is absent after the data layer loads. The suite has 331 tests
+test asserts it is absent after the data layer loads. The suite has 341 tests
 (README §7).
 
 ## 5.4 Walk-forward evaluation
