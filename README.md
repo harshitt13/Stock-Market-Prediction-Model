@@ -547,6 +547,8 @@ python src/main.py --ticker AAPL \
 | SHA-256 | `213808b8e187e49a6a0406e5d217428b1ded57848409d42a723945b950a57ac5` |
 | Shape | 4144 rows × 34 cols, AAPL 2010-03-16 → 2026-09-03 |
 | Seed | 42 (headline), 0–4 (variance study) |
+| Environment | `requirements-lock.txt` (`pip freeze` of the environment that produced the results) |
+| Meta-learner fits | `results/headline/AAPL__frozen__seed42_meta_fits.csv` (per-fold ridge penalty, intercept, coefficients; `python analysis/persist_meta_fits.py`) |
 | Runtime | ~100 min, single machine, CPU only |
 
 The `--raw-csv` flag exists so a run reproduces exactly the data an earlier run
