@@ -465,7 +465,7 @@ Price is a display quantity only: `close_hat[t+1] = close_t[t] * exp(y_hat[t])`.
 | **Scalers fitted on training folds only** | `StandardScaler`, not MinMax: MinMax maps the training range onto [0,1] and puts every larger test move outside it. |
 | **Offline tests** | `yfinance` is imported lazily inside `_get_ticker()`; a subprocess test asserts it is not in `sys.modules` after importing the data layer. |
 
-**Test suite: 314 tests.** The most important is
+**Test suite: 329 tests.** The most important is
 `test_features_do_not_depend_on_future_rows`.
 
 ---
@@ -571,7 +571,7 @@ regenerable).
 | `src/main.py` | CLI orchestrator. |
 | `analysis/` | One-shot analyses that read `results/` without retraining. |
 | `docs/` | Frozen input and the before/after comparison tables. |
-| `tests/` | 314 tests, including the mutation-tested leakage suite. |
+| `tests/` | 329 tests, including the mutation-tested leakage suite. |
 
 ---
 
