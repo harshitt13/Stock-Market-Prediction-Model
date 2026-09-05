@@ -92,7 +92,7 @@ State these as the numbered list. They are, in descending strength:
    degradation, with the link tested rather than asserted.
 5. **A seed-variance result** showing architecture comparisons are not
    identifiable at one seed.
-6. **An open, tested artifact**: 331 tests, offline fixtures, mutation-tested
+6. **An open, tested artifact**: 341 tests, offline fixtures, mutation-tested
    leakage detection, frozen data for the headline figure.
 
 ### 4. Protocol artifacts (this is the core section)
@@ -158,11 +158,11 @@ Meet the one number that points the other way before a reader finds it. On
 AAPL the tree's net Sharpe is 1.166 against buy-and-hold's 1.045 (Table 3,
 equity-curve figure). That gap is exposure and noise, not skill, and the same
 table shows it in four steps. The market-adjusted alpha behind the Sharpe is
-+7.4% a year with t(alpha) = +1.71, p = 0.087; Holm-corrected over the nine
-strategies tested, p = 0.698. Under a pure null with nine correlated tests
-(rho = 0.8) the expected maximum |t| is 1.40 and P(max|t| >= 1.71) = 0.27;
-with nine independent tests, 1.84 and 0.56. A t of 1.71 is what no alpha looks
-like when you look nine times. Raising the round-trip cost from 7.5 to 10 bps
++7.4% a year with t(alpha) = +1.71, p = 0.087; Holm-corrected over the eleven
+strategies tested (nine before the two linear comparators), p = 0.873. Under a
+pure null with eleven correlated tests (rho = 0.8) the expected maximum |t| is 1.44
+and P(max|t| >= 1.71) = 0.29; with eleven independent tests, 1.92 and 0.63. A t of
+1.71 is what no alpha looks like when you look eleven times. Raising the round-trip cost from 7.5 to 10 bps
 takes it to t = +1.43, p = 0.152. A one-day execution lag flips the alpha
 negative at zero cost (-1.8% a year, t = -0.41) and to -5.4% at 7.5 bps. As
 for the Sharpe itself: it compares a position with beta 0.663 and 61%

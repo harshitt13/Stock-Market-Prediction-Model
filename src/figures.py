@@ -40,6 +40,7 @@ DPI = 150
 # a glance without a legend for every figure.
 ROLE_COLOURS = {
     "base": "#1f77b4",       # tree / LSTM / transformer
+    "linear": "#17becf",     # ridge / logistic comparators
     "meta": "#9467bd",       # hybrid meta
     "baseline": "#7f7f7f",   # zero, historical mean, AR, ARIMA, random
     "benchmark": "#2ca02c",  # buy and hold
@@ -58,6 +59,8 @@ def _role(name: str) -> str:
         return "baseline"
     if "Hybrid meta" in name:
         return "meta"
+    if name.startswith(("Ridge", "Logistic")):
+        return "linear"
     return "base"
 
 
@@ -97,9 +100,9 @@ def _numeric(series: pd.Series) -> pd.Series:
 def _role_legend(ax: plt.Axes, roles: Iterable[str]) -> None:
     from matplotlib.patches import Patch
 
-    labels = {"base": "base model", "meta": "hybrid meta", "baseline": "baseline",
+    labels = {"base": "base model", "linear": "linear comparator", "meta": "hybrid meta", "baseline": "baseline",
               "benchmark": "buy and hold"}
-    seen = [r for r in ("base", "meta", "baseline", "benchmark") if r in set(roles)]
+    seen = [r for r in ("base", "linear", "meta", "baseline", "benchmark") if r in set(roles)]
     ax.legend(handles=[Patch(color=ROLE_COLOURS[r], label=labels[r]) for r in seen],
               loc="best")
 
@@ -107,6 +110,7 @@ def _role_legend(ax: plt.Axes, roles: Iterable[str]) -> None:
 #: Rows are drawn models-first, baselines last, whatever order the input has.
 CANONICAL_ORDER = [
     "Tree Ensemble", "BiLSTM", "Transformer",
+    "Ridge (returns)", "Logistic (direction)",
     "Hybrid meta (+VIX)", "Hybrid meta (no VIX)",
     "Zero return", "Historical mean", "AR(1) returns", "ARIMA(5, 0, 0) returns",
     "Random sign", "Buy and hold",
@@ -205,9 +209,9 @@ def fig_model_comparison(comparison: pd.DataFrame, subtitle: str, out) -> Path:
 
     from matplotlib.patches import Patch
     roles = {_role(n) for n in names}
-    labels = {"base": "base model", "meta": "hybrid meta", "baseline": "baseline"}
+    labels = {"base": "base model", "linear": "linear comparator", "meta": "hybrid meta", "baseline": "baseline"}
     fig.legend(handles=[Patch(color=ROLE_COLOURS[r], label=labels[r])
-                        for r in ("base", "meta", "baseline") if r in roles],
+                        for r in ("base", "linear", "meta", "baseline") if r in roles],
                loc="lower center", ncol=3, bbox_to_anchor=(0.5, -0.02))
     fig.suptitle(f"Model comparison \u2014 {subtitle}", fontsize=11)
     fig.tight_layout(rect=(0, 0.04, 1, 1))

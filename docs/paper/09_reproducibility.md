@@ -73,6 +73,9 @@ without retraining, by the scripts under `analysis/` (README §9;
 |---|---|---|
 | `results/headline/AAPL__frozen__seed42.parquet` | 29,232 per-fold predictions of the headline run, ten models, twelve folds | Table 1 checks, Table 3, the AAPL figures |
 | `results/AAPL__frozen__seed42_meta_fits.csv` | the ridge penalty, intercept and coefficients the meta-learner fitted in each of its ten folds, both variants | §5.5, §7.3 |
+| `results/headline/AAPL__frozen__seed42__linear.parquet` | the two linear comparators on the headline run, same schema, twelve folds | Table 1, Table 3 |
+| `results/comparators/` | the two linear comparators on all thirty sweep tickers, one parquet per ticker | Table 2, §6.2 |
+| `results/linear_fits_headline.csv`, `results/linear_fits_sweep.csv` | the comparators' selected penalties and prediction dispersion per fold | §5.5, §7.3 |
 | `results/predictions/` | 595,224 predictions of the 30-ticker sweep | §6.2, §6.3, the cross-ticker figure |
 | `results/per_ticker_model.csv` | 200 rows of per-ticker, per-model metrics with the seeded benchmark | Table 2, §6.2 |
 | `results/fold_diagnostics.csv` | 357 fold-ticker rows of train/test return statistics and the KS test | §6.4 |
@@ -104,6 +107,7 @@ python src/experiments.py --parallel --workers 6      # the sweep, ~270 min
 python seed_study.py                                  # 5 seeds on AAPL, ~240 min
 python analysis/freeze_headline_predictions.py        # headline parquet, ~100 min, no network
 python analysis/persist_meta_fits.py                  # meta fits from the parquet, seconds
+python analysis/run_linear_comparators.py             # ridge and logistic, headline + 30 tickers, ~15 min, needs results/raw/
 python analysis/cross_ticker_sweep.py                 # section 6.2
 python analysis/alpha_correction_and_window.py        # section 6.3
 python analysis/distribution_shift_and_exposure.py    # section 6.4
@@ -113,7 +117,7 @@ python analysis/grid_offset_sweep.py                  # grid-offset error bar, ~
 python analysis/grid_vs_data.py                       # data vs grid 2x2, ~3 min, needs results/raw/
 python analysis/grid_conditional_tickers.py           # five tickers, two grids, ~6 min, needs results/raw/
 python analysis/make_figures.py                       # the thirteen figures
-python -m pytest                                      # 331 tests
+python -m pytest                                      # 341 tests
 ```
 
 Timings are from README §9 and commit messages (`baeca9f`: 270.2 minutes
@@ -145,7 +149,7 @@ run from committed files alone.
 
 ## 9.8 Tests
 
-The suite has 331 tests (`python -m pytest --collect-only`; README §7),
+The suite has 341 tests (`python -m pytest --collect-only`; README §7),
 all offline. It covers the row contract, truncation invariance of every
 feature, six injected leaks that the leakage check must catch, the seeded
 benchmark, the common window, the metrics, the figures, and the provenance

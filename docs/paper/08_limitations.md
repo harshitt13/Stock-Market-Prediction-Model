@@ -213,12 +213,15 @@ window (§4.3) and short window (§4.4) effects were measured on the
 `analysis/alpha_correction_and_window.py`). The fixture exists to
 demonstrate mechanism, and we report those magnitudes as such.
 
-**The cold aggregation path is still present.** `experiments.aggregate`
-evaluates without training returns and its output is unseeded (§4.2). No
-number in this paper is taken from it, but a reader running
-`python src/experiments.py --aggregate-only` will obtain cold numbers. We
-left it unchanged rather than alter evaluation code during writing, and we
-record it here.
+**The cold aggregation path existed until commit `a2995de`.**
+`experiments.aggregate` evaluated without training returns, and its output
+was unseeded (§4.2). No number in this paper was taken from it. It has
+since been closed structurally: the evaluator refuses to run without the
+seeds and the aggregator rebuilds them from each run's own windows. We
+record here that the closure came after the results were produced, so the
+committed sweep aggregates were computed by the analysis path, not by the
+repaired aggregator; the two agree because both seed the benchmark the
+same way.
 
 **The ridge grid may be censored at the top.** The meta-learner's
 cross-validation selected the grid's ceiling of 10⁶ in four of twenty
@@ -243,7 +246,7 @@ so the statistic is the mean loss differential over its plain standard
 error (`src/evaluate.py`, `diebold_mariano`).
 
 **Multiple-testing correction was applied within families, not across the
-paper.** Holm-Bonferroni was applied across the nine strategies on AAPL and
+paper.** Holm-Bonferroni was applied across the eleven strategies on AAPL and
 across the thirty tickers per test (§6.2, §6.3). It was not applied across
 the union of every test this paper reports. The seed study's ten tests
 were counted (§6.5), but not folded into the others.

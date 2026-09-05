@@ -27,6 +27,7 @@ matplotlib.use("Agg")
 
 from backtest import DEFAULT_COST_BPS, NOT_APPLICABLE, backtest_table
 from baselines import run_all_baselines
+from linear_models import run_linear_comparators
 from contracts import (
     align_predictions,
     common_evaluation_window,
@@ -208,8 +209,14 @@ def run_pipeline(
         demo_history=raw,
     )
 
-    print("\n[5/7] Baselines...")
+    print("\n[5/7] Baselines and linear comparators...")
     baseline_results = run_all_baselines(dataset, folds, seed=seed)
+    linear_results = run_linear_comparators(dataset, folds, seed=seed)
+    for result in linear_results.values():
+        fits = result["fold_fits"]
+        penalty = "alpha" if "alpha" in fits.columns else "C"
+        print(f"  {result['model_name']}: {len(fits)} folds, {penalty} per fold "
+              f"{fits[penalty].tolist()}")
 
     print("\n[6/7] Out-of-fold meta-ensemble...")
     meta_frame = build_meta_frame(base_results, dataset)
@@ -247,7 +254,9 @@ def run_pipeline(
     # until the common evaluation window is known.
     all_predictions: Dict[str, pd.DataFrame] = {
         result["model_name"]: result["predictions"]
-        for result in list(base_results.values()) + list(baseline_results.values())
+        for result in (
+            list(base_results.values()) + list(baseline_results.values()) + list(linear_results.values())
+        )
     }
     if gating is not None:
         for side in ("with_vix", "without_vix"):

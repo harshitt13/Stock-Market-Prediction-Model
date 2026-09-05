@@ -167,7 +167,8 @@ def aapl_figures() -> list:
     economics = backtest_table(primary, benchmark_predictions=primary["Zero return"])
     meta_name = next(n for n in primary if "+VIX" in n)
     calibration = fold_respecting_intervals(primary[meta_name])
-    models = ["Tree Ensemble", "BiLSTM", "Transformer", "Hybrid meta (+VIX)", "Hybrid meta (no VIX)"]
+    models = ["Tree Ensemble", "BiLSTM", "Transformer", "Ridge (returns)", "Logistic (direction)",
+              "Hybrid meta (+VIX)", "Hybrid meta (no VIX)"]
 
     return [
         fig_model_comparison(comparison, subtitle, OUT / "aapl_model_comparison.png"),

@@ -65,6 +65,11 @@ def aggregates(predictions: pd.DataFrame, name: str, y_train: dict) -> dict:
         "r2_fold_median": float(np.median(r2)),
         "r2_fold_mean_excl_worst": float(np.delete(r2, worst).mean()),
         "worst_fold": int(pf["fold_id"].iloc[worst]), "worst_fold_r2": float(r2[worst]),
+        "directional_accuracy": float(ev["pooled"]["directional_accuracy"]),
+        "majority_class_rate": float(ev["pooled"]["majority_class_rate"]),
+        "pt_p_value": float(ev["pooled"].get("pt_p_value", float("nan"))),
+        "rmse_bps": float(ev["pooled"]["rmse_bps"]),
+        "excluded_fraction": float(ev["pooled"]["excluded_fraction"]),
         "da_minus_majority_pooled": float(ev["pooled"]["da_minus_majority"]),
         "da_minus_majority_fold_median": float(np.median(pf["da_minus_majority"].to_numpy(float))),
     }
@@ -91,15 +96,31 @@ def headline() -> pd.DataFrame:
 
 def sweep() -> pd.DataFrame:
     runs = load_runs(str(SWEEP_DIR))
-    tree = runs[runs["model"] == "Tree Ensemble"]
+    comparators = REPO / "results" / "comparators"
+    if comparators.exists():
+        runs = pd.concat([runs, load_runs(str(comparators))], ignore_index=True)
+    wanted = ["Tree Ensemble", "Ridge (returns)", "Logistic (direction)"]
     rows = []
-    for ticker, block in tree.groupby("ticker"):
-        ds = load_dataset(RAW_DIR / f"{ticker}.csv")
-        folds = WalkForwardSplitter(*FOLD_CFG).split(len(ds))
-        y_train = {i: ds.y[np.asarray(tr)] for i, (tr, _) in enumerate(folds)}
-        rows.append({"ticker": ticker, **aggregates(frame(block), f"{ticker} tree", y_train)})
+    y_train_cache = {}
+    for (ticker, model), block in runs[runs["model"].isin(wanted)].groupby(["ticker", "model"]):
+        if ticker not in y_train_cache:
+            ds = load_dataset(RAW_DIR / f"{ticker}.csv")
+            folds = WalkForwardSplitter(*FOLD_CFG).split(len(ds))
+            y_train_cache[ticker] = {i: ds.y[np.asarray(tr)] for i, (tr, _) in enumerate(folds)}
+        rows.append({"ticker": ticker, "model": model, **aggregates(frame(block), f"{ticker} {model}", y_train_cache[ticker])})
     table = pd.DataFrame(rows)
+    table = table.set_index("model").loc[[m for m in wanted if m in set(table["model"])]].reset_index()
     table.to_csv(OUT_SWEEP, index=False)
+    for model in wanted:
+        sub = table[table["model"] == model]
+        if sub.empty:
+            continue
+        print(f"\n{model} across the sweep ({len(sub)} tickers):")
+        for col in ("r2_pooled", "r2_fold_mean", "r2_fold_median"):
+            v = sub[col]
+            print(f"  {col:<16} mean {v.mean():+.4f}  median {v.median():+.4f}  sd {v.std(ddof=1):.4f}  "
+                  f"min {v.min():+.4f}  max {v.max():+.4f}  tickers > 0: {int((v > 0).sum())}/{len(v)}")
+    table = table[table["model"] == "Tree Ensemble"]
     print("\ntree ensemble across the sweep:")
     for col in ("r2_pooled", "r2_fold_mean", "r2_fold_median"):
         v = table[col]
