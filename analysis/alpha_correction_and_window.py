@@ -57,9 +57,9 @@ def main():
     print(f"  uncorrected p < 0.05         : {int((raw_p < 0.05).sum())}")
     print(f"  Holm-corrected p < 0.05      : {int((holm_p < 0.05).sum())}")
 
-    banner("1b. EXPECTED MAX |t| UNDER A PURE NULL, 10 CORRELATED TESTS")
-    rng = np.random.default_rng(0)
     m = int(raw_p.notna().sum())
+    banner(f"1b. EXPECTED MAX |t| UNDER A PURE NULL, {m} CORRELATED TESTS")
+    rng = np.random.default_rng(0)
     # The strategies trade the same asset, so their alpha estimates are highly
     # correlated. Bracket the answer with independent and strongly-correlated
     # draws rather than assuming either.
