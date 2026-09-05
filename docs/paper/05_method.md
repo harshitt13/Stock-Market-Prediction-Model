@@ -1,9 +1,9 @@
 # 5. Method
 
 Every number in this section is read from a committed file in the repository
-at commit `783828c` (results tagged `v1.0-results` at `3fa7f8b`), and the file
+at the results commit recorded in §9.1 (results tagged `v1.0-results` at `3fa7f8b`), and the file
 is named where the number appears. Where a fact is not recorded in any
-committed artefact it is marked **[unsourced]** and left as a gap rather than
+committed artifact it is marked **[unsourced]** and left as a gap rather than
 filled in.
 
 ## 5.1 Data and universe
@@ -45,7 +45,7 @@ Each was fetched from 2010-01-01 with an open end date
 `REGIMES["full"]`). The fetch cache itself is not committed (`results/raw/`
 is gitignored), so **[unsourced]**: the per-ticker raw row counts and end
 dates of the 29 non-AAPL series, and the calendar date on which the sweep's
-cache was fetched, are not recoverable from a committed artefact. What is
+cache was fetched, are not recoverable from a committed artifact. What is
 committed is every prediction the sweep made (`results/predictions/`, 595,224
 rows). From those, the first forecast day is 2014-03-19 for 28 of the 30
 tickers; the two later listings start later and have fewer folds, META from
@@ -68,7 +68,7 @@ six sector groups: AAPL, JNJ, JPM, WMT and XOM. The committed predictions
 show this directly: five tickers carry all ten models and twenty-five carry
 six (`results/predictions/`). **[unsourced]**: the reason for the
 restriction and the basis for choosing those five are not recorded in any
-committed artefact. The compute context is: a full run of all models on one
+committed artifact. The compute context is: a full run of all models on one
 ticker takes about a hundred minutes on the machine used (README §9,
 "Runtime"), and the default quarterly configuration would take 11 to 45
 hours per run (README §8.3); that is context, not a cited decision. Every
@@ -231,7 +231,7 @@ models' forecast days, including the meta's: folds 2 to 11, 2520 days,
 number exactly 2520). `common_evaluation_window` asserts the intersection is
 non-empty and contiguous, since a hole would mean a model is missing days the
 others have (`src/contracts.py`). Scoring the base models on the two extra
-folds the meta never saw is one of the protocol artefacts measured in §4; on
+folds the meta never saw is one of the protocol artifacts measured in §4; on
 the fixture, those folds were the 2020 crash (README §5.1).
 
 **Limitation: the annual refit.** A 252-day test fold with a 252-day step
@@ -249,7 +249,7 @@ refit therefore plausibly accounts for part of the poor performance, and the
 limitation is stated here rather than in §8 alone (README §8.1).
 
 **The fixture configuration.** The mechanism experiments reported in §4
-(the cold-start benchmark and the short-window artefacts) were run on the
+(the cold-start benchmark and the short-window artifacts) were run on the
 test fixture with *m* = 400, *n* = 60, *s* = 60 (`analysis/ridge_grid_and_tree.py`),
 a quarterly refit that gives nine folds on the fixture's 958 dataset rows and
 a 420-day common window for the meta (computed from `tests/fixtures/aapl_raw.csv`
@@ -405,7 +405,7 @@ R²_OOS = 1 − SSE_model / SSE_benchmark, where the benchmark for each day is
 the expanding mean of all returns before it. The benchmark is **seeded with
 the fold's training returns** and extended with realised test returns
 (`expanding_mean_benchmark`); a benchmark that restarts from nothing at each
-fold's first day is the cold-start artefact measured in §4. The training
+fold's first day is the cold-start artifact measured in §4. The training
 returns are a required argument of the evaluation function: omitting them
 is an error at the call site, and a mapping that lacks any fold raises
 before a metric is computed (`evaluate_predictions`,
@@ -476,7 +476,7 @@ outside the training range (`src/experiments.py`, `fold_return_diagnostics`;
 any model could have learned that still applied, and it is used in §6.4 to
 explain the magnitude of the error, not its sign.
 
-### Artefacts cited in this section
+### Artifacts cited in this section
 
 | File | What it sources here |
 |---|---|

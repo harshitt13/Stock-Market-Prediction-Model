@@ -1,7 +1,7 @@
 # 6. Results
 
 Every number in this section was read from a committed file in the
-repository at commit `ead69ec` (results tagged `v1.0-results` at
+repository at the results commit recorded in §9.1 (results tagged `v1.0-results` at
 `3fa7f8b`) or recomputed from committed predictions with the committed
 evaluation code, and the source is named beside it. Where a number could not
 be traced we marked it **[unsourced]** rather than filling it in.
@@ -320,7 +320,7 @@ eleven strategies with a p-value).
 | Logistic (direction) | −0.0162 | −1.05 | 1.000 | 0.971 | 0.985 | 0.973 |
 | BiLSTM | −0.0257 | −0.93 | 1.000 | 0.899 | 0.848 | 0.896 |
 | Historical mean | −0.0000 | −1.00 | 1.000 | 1.000 | 1.000 | 1.045 |
-| Buy and hold | 0 | — | — | 1.000 | 1.000 | 1.045 |
+| Buy-and-hold | 0 | — | — | 1.000 | 1.000 | 1.045 |
 
 The tree's alpha under stress (same source):
 

@@ -9,8 +9,7 @@ order: the mechanism, the magnitude measured in our own pipeline with the
 artifact cited, and how a reader detects it in their own work. It closes
 with a checklist.
 
-Every number is read from a committed file in the repository at commit
-`f6c665a` (results tagged `v1.0-results` at `3fa7f8b`) or from the message
+Every number is read from a committed file in the repository at the results commit recorded in §9.1 (results tagged `v1.0-results` at `3fa7f8b`) or from the message
 of a commit in its history, and the source is named beside it. Anything not
 so recorded is marked **[unsourced]**.
 
@@ -282,7 +281,7 @@ same code, same statistic, on two windows:
 | Fixture, 2018 to 2021 | 420 | **+2.321** | **0.0203** | no VIX | yes |
 | Full span, 2016 to 2026 | 2520 | **−0.595** | **0.5519** | with VIX | no |
 
-(`analysis/alpha_correction_and_window.py`, the window-artefact table;
+(`analysis/alpha_correction_and_window.py`, the window-artifact table;
 README §12, item 5.) The short window says VIX gating significantly hurts;
 the long one says the two variants are indistinguishable and, if anything,
 VIX helps. The signs are opposite. The project's own earlier reading of the
