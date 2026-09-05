@@ -259,7 +259,8 @@ def vix_tercile_weights(
 def compare_vix_gating(
     meta_frame: pd.DataFrame,
     min_train_folds: int = MIN_TRAIN_FOLDS,
-    y_train_by_fold: Optional[Dict[int, np.ndarray]] = None,
+    *,
+    y_train_by_fold: Dict[int, np.ndarray],
 ) -> Dict[str, Any]:
     """Fit the meta-learner with and without VIX and test the difference.
 

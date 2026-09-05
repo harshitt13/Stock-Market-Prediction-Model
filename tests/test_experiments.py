@@ -175,50 +175,50 @@ class TestPersistence:
 
 
 class TestAggregation:
-    def test_aggregates_are_computed_from_disk(self, runs):
+    def test_aggregates_are_computed_from_disk(self, runs, loader):
         """Section 9: never from memory."""
-        per_run = aggregate(str(runs))
+        per_run = aggregate(str(runs), load_raw=loader)
         assert not per_run.empty
         assert set(per_run["ticker"]) == {"AAA", "BBB"}
         assert set(per_run["seed"]) == {0, 1}
 
-    def test_one_row_per_regime_model_ticker_seed(self, runs):
-        per_run = aggregate(str(runs))
+    def test_one_row_per_regime_model_ticker_seed(self, runs, loader):
+        per_run = aggregate(str(runs), load_raw=loader)
         assert not per_run.duplicated(["regime", "model", "ticker", "seed"]).any()
 
-    def test_carries_the_primary_metrics(self, runs):
-        per_run = aggregate(str(runs))
+    def test_carries_the_primary_metrics(self, runs, loader):
+        per_run = aggregate(str(runs), load_raw=loader)
         for column in ("directional_accuracy", "r2_oos", "rmse_bps", "pt_p_value"):
             assert column in per_run.columns
 
-    def test_seed_variance_is_reported(self, runs):
+    def test_seed_variance_is_reported(self, runs, loader):
         """The spread across seeds is often larger than the gap between
         models; a model comparison that ignores it is not a finding."""
-        variance = seed_variance(aggregate(str(runs)))
+        variance = seed_variance(aggregate(str(runs), load_raw=loader))
         assert (variance["n_seeds"] == 2).all()
         assert "da_std" in variance.columns
         assert "r2_std" in variance.columns
 
-    def test_cross_ticker_summary(self, runs):
-        summary = across_tickers(aggregate(str(runs)))
+    def test_cross_ticker_summary(self, runs, loader):
+        summary = across_tickers(aggregate(str(runs), load_raw=loader))
         assert (summary["n_tickers"] == 2).all()
         assert "da_frac_above_half" in summary.columns
         assert summary["da_frac_above_half"].between(0, 1).all()
         assert "r2_frac_positive" in summary.columns
 
-    def test_zero_return_baseline_lands_near_zero_r2(self, runs):
-        per_run = aggregate(str(runs))
+    def test_zero_return_baseline_lands_near_zero_r2(self, runs, loader):
+        per_run = aggregate(str(runs), load_raw=loader)
         zero = per_run[per_run["model"] == "Zero return"]
         assert not zero.empty
         assert zero["r2_oos"].abs().max() < 0.2
 
-    def test_write_aggregates_emits_three_files(self, runs, tmp_path):
-        write_aggregates(str(runs), str(tmp_path))
+    def test_write_aggregates_emits_three_files(self, runs, loader, tmp_path):
+        write_aggregates(str(runs), str(tmp_path), load_raw=loader)
         for name in ("per_run.csv", "seed_variance.csv", "across_tickers.csv"):
             assert (tmp_path / name).exists()
 
-    def test_aggregates_can_be_recomputed_without_retraining(self, runs, tmp_path):
+    def test_aggregates_can_be_recomputed_without_retraining(self, runs, loader, tmp_path):
         """The whole point of persisting: rerun the aggregation cheaply."""
-        first = write_aggregates(str(runs), str(tmp_path))["per_run.csv"]
-        second = write_aggregates(str(runs), str(tmp_path))["per_run.csv"]
+        first = write_aggregates(str(runs), str(tmp_path), load_raw=loader)["per_run.csv"]
+        second = write_aggregates(str(runs), str(tmp_path), load_raw=loader)["per_run.csv"]
         pd.testing.assert_frame_equal(first, second)

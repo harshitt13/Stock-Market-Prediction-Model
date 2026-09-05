@@ -27,6 +27,7 @@ import pandas as pd
 from baselines import run_all_baselines
 from dataset import build_dataset
 from evaluate import evaluate_predictions
+from linear_models import run_linear_comparators
 from lstm_model import train_lstm_model
 from meta_ensemble import build_meta_frame, fit_stacked_meta
 from transformer_model import train_transformer_model
@@ -178,7 +179,7 @@ def run_single(
         print(f"  {ticker}/{regime}/seed{seed}: no folds, skipped")
         return None
 
-    wanted = set(include_models or ["tree", "lstm", "transformer", "baselines", "meta"])
+    wanted = set(include_models or ["tree", "lstm", "transformer", "baselines", "linear", "meta"])
     blocks: List[pd.DataFrame] = []
     base_results: Dict[str, Any] = {}
 
@@ -211,6 +212,10 @@ def run_single(
 
     if "baselines" in wanted:
         for result in run_all_baselines(dataset, folds, seed=seed).values():
+            collect(result["model_name"], result["predictions"])
+
+    if "linear" in wanted:
+        for result in run_linear_comparators(dataset, folds, seed=seed).values():
             collect(result["model_name"], result["predictions"])
 
     if "meta" in wanted and len(base_results) >= 2:
@@ -278,11 +283,57 @@ def sweep(
 GROUP_KEYS = ["regime", "model", "ticker", "seed"]
 
 
+def training_returns_for_run(dataset, predictions: pd.DataFrame) -> Dict[int, np.ndarray]:
+    """Each fold's training returns, recovered from the run's own test windows.
+
+    An expanding-window fold trains on every dataset row before its first
+    test day, so fold k's training history is the dataset's returns up to the
+    row before its earliest ``target_date``. This needs no record of the
+    min_train/test/step configuration.
+    """
+    target_dates = pd.to_datetime(pd.Series(np.asarray(dataset.target_date)))
+    out: Dict[int, np.ndarray] = {}
+    for fold_id, block in predictions.groupby("fold_id", sort=True):
+        first = pd.Timestamp(block["target_date"].min())
+        n_before = int((target_dates < first).sum())
+        if n_before == 0:
+            raise ValueError(f"fold {int(fold_id)} has no dataset rows before {first.date()}")
+        out[int(fold_id)] = dataset.y[:n_before]
+    return out
+
+
 def aggregate(
-    results_dir: str = PREDICTIONS_DIR, runs: Optional[pd.DataFrame] = None
+    results_dir: str = PREDICTIONS_DIR,
+    runs: Optional[pd.DataFrame] = None,
+    *,
+    load_raw: Callable[..., Optional[pd.DataFrame]],
 ) -> pd.DataFrame:
-    """Metrics for every (regime, model, ticker, seed) run, read from disk."""
+    """Metrics for every (regime, model, ticker, seed) run, read from disk.
+
+    ``load_raw`` is required. It serves each ticker's raw frame so that every
+    fold's training returns can be rebuilt and the R2_OOS benchmark seeded.
+    An earlier version of this function evaluated without them; the
+    zero-return baseline then scored +0.035 on all thirty sweep tickers, and
+    the flag that recorded the omission was never read on this path. The
+    evaluator now raises without the seeds, and this function rebuilds them
+    from the run's own fold windows.
+    """
     runs = load_runs(results_dir) if runs is None else runs
+
+    datasets: Dict[Tuple[str, str], Any] = {}
+
+    def dataset_for(ticker: str, regime: str):
+        key = (ticker, regime)
+        if key not in datasets:
+            start, end = REGIMES[regime]
+            raw = load_raw(ticker, start, end)
+            if raw is None:
+                raise FileNotFoundError(f"no raw data for {ticker}; cannot seed the R2_OOS benchmark")
+            raw = raw[raw["Date"] >= pd.Timestamp(start)]
+            if end is not None:
+                raw = raw[raw["Date"] < pd.Timestamp(end)]
+            datasets[key] = build_dataset(raw.reset_index(drop=True))
+        return datasets[key]
 
     rows = []
     for keys, block in runs.groupby(GROUP_KEYS, sort=True):
@@ -292,8 +343,10 @@ def aggregate(
             .reset_index(drop=True)
         )
         predictions["fold_id"] = predictions["fold_id"].astype("int64")
+        regime, model, ticker = str(keys[0]), str(keys[1]), str(keys[2])
         evaluation = evaluate_predictions(
-            predictions, model_name=str(keys[1]), validate=False
+            predictions, model_name=model, validate=False,
+            y_train_by_fold=training_returns_for_run(dataset_for(ticker, regime), predictions),
         )
         pooled = evaluation["pooled"]
         rows.append(
@@ -361,11 +414,14 @@ def across_tickers(per_run: pd.DataFrame) -> pd.DataFrame:
 
 
 def write_aggregates(
-    results_dir: str = PREDICTIONS_DIR, out_dir: str = RESULTS_DIR
+    results_dir: str = PREDICTIONS_DIR,
+    out_dir: str = RESULTS_DIR,
+    *,
+    load_raw: Callable[..., Optional[pd.DataFrame]],
 ) -> Dict[str, pd.DataFrame]:
     """Recompute every aggregate from the persisted runs and write them out."""
     os.makedirs(out_dir, exist_ok=True)
-    per_run = aggregate(results_dir)
+    per_run = aggregate(results_dir, load_raw=load_raw)
 
     outputs = {
         "per_run.csv": per_run,
@@ -390,8 +446,8 @@ def write_aggregates(
 #: answers -- is the null universal -- does not need them on all thirty.
 FULL_MODEL_TICKERS = ("AAPL", "JPM", "JNJ", "XOM", "WMT")
 
-CHEAP_MODELS = ("tree", "baselines")
-ALL_MODELS = ("tree", "lstm", "transformer", "baselines", "meta")
+CHEAP_MODELS = ("tree", "baselines", "linear")
+ALL_MODELS = ("tree", "lstm", "transformer", "baselines", "linear", "meta")
 
 
 def cached_loader(raw_dir: str) -> Callable[..., Optional[pd.DataFrame]]:
@@ -617,6 +673,8 @@ def main() -> None:
     parser.add_argument("--test-size", type=int, default=63)
     parser.add_argument("--step-size", type=int, default=63)
     parser.add_argument("--results-dir", default=PREDICTIONS_DIR)
+    parser.add_argument("--raw-dir", default=os.path.join("results", "raw"),
+                        help="Cached raw CSVs; needed to seed the R2_OOS benchmark when aggregating")
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument(
         "--parallel",
@@ -652,6 +710,7 @@ def main() -> None:
             max_workers=args.workers,
             torch_threads=args.torch_threads,
             results_dir=args.results_dir,
+            raw_dir=args.raw_dir,
         )
     elif not args.aggregate_only:
         sweep(
@@ -666,7 +725,7 @@ def main() -> None:
             step_size=args.step_size,
         )
 
-    write_aggregates(args.results_dir)
+    write_aggregates(args.results_dir, load_raw=cached_loader(args.raw_dir))
 
 
 if __name__ == "__main__":

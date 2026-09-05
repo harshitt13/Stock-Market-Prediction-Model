@@ -6,6 +6,7 @@ import pytest
 
 from contracts import ContractViolation, make_predictions
 from evaluate import (
+    UnseededBenchmark,
     DIRECTION_THRESHOLD,
     compare_evaluations,
     diebold_mariano,
@@ -20,6 +21,13 @@ from evaluate import (
     return_error_metrics,
     summarize_across_folds,
 )
+
+
+def seeds_for(preds, rng=None, n: int = 200):
+    """Training returns for every fold of a synthetic frame: the seed the
+    R2_OOS benchmark now requires. Scale matches the synthetic returns."""
+    rng = rng if rng is not None else np.random.default_rng(0)
+    return {int(k): rng.normal(0.0, 0.02, n) for k in preds["fold_id"].unique()}
 
 
 def predictions_frame(y_true, y_pred, fold_id=None, close=100.0) -> pd.DataFrame:
@@ -95,7 +103,7 @@ def test_directional_accuracy_has_no_fold_boundary_artefact():
 
     preds = predictions_frame(y_true, y_pred, fold_id)
     pooled = directional_accuracy(y_true, y_pred)
-    folds = per_fold_metrics(preds)
+    folds = per_fold_metrics(preds, y_train_by_fold=seeds_for(preds))
 
     assert pooled["n_evaluated"] == int(folds["n_evaluated"].sum())
     n_correct_pooled = pooled["directional_accuracy"] * pooled["n_evaluated"]
@@ -300,7 +308,7 @@ class TestPerFoldStatistics:
         preds = predictions_frame(
             rng.normal(0, 0.02, 90), rng.normal(0, 0.02, 90), np.repeat([0, 1, 2], 30)
         )
-        folds = per_fold_metrics(preds)
+        folds = per_fold_metrics(preds, y_train_by_fold=seeds_for(preds))
         assert list(folds["fold_id"]) == [0, 1, 2]
         assert (folds["n"] == 30).all()
 
@@ -309,7 +317,7 @@ class TestPerFoldStatistics:
         preds = predictions_frame(
             rng.normal(0, 0.02, 80), rng.normal(0, 0.02, 80), np.repeat([0, 1], 40)
         )
-        summary = summarize_across_folds(per_fold_metrics(preds))
+        summary = summarize_across_folds(per_fold_metrics(preds, y_train_by_fold=seeds_for(preds)))
         assert summary["n_folds"] == 2
         assert "directional_accuracy_mean" in summary
         assert "directional_accuracy_std" in summary
@@ -318,7 +326,7 @@ class TestPerFoldStatistics:
     def test_a_single_fold_has_zero_std_not_nan(self):
         rng = np.random.default_rng(13)
         preds = predictions_frame(rng.normal(0, 0.02, 40), rng.normal(0, 0.02, 40))
-        summary = summarize_across_folds(per_fold_metrics(preds))
+        summary = summarize_across_folds(per_fold_metrics(preds, y_train_by_fold=seeds_for(preds)))
         assert summary["directional_accuracy_std"] == 0.0
 
 
@@ -333,7 +341,7 @@ class TestEvaluatePredictions:
         preds = predictions_frame(
             rng.normal(0, 0.02, 60), rng.normal(0, 0.02, 60), np.repeat([0, 1], 30)
         )
-        result = evaluate_predictions(preds, "Test Model")
+        result = evaluate_predictions(preds, "Test Model", y_train_by_fold=seeds_for(preds))
 
         assert result["model"] == "Test Model"
         assert result["n_predictions"] == 60
@@ -346,20 +354,36 @@ class TestEvaluatePredictions:
         preds = predictions_frame(rng.normal(0, 0.02, 20), rng.normal(0, 0.02, 20))
         preds.loc[3, "y_pred"] = np.nan
         with pytest.raises(ContractViolation):
-            evaluate_predictions(preds, "Broken")
+            evaluate_predictions(preds, "Broken", y_train_by_fold=seeds_for(preds))
+
+    def test_refuses_to_run_without_training_returns(self):
+        """The benchmark seed is structural, not a flag: omitting it is a
+        TypeError at the call site, and passing None or an incomplete mapping
+        raises before any metric is computed."""
+        rng = np.random.default_rng(18)
+        preds = predictions_frame(rng.normal(0, 0.02, 60), rng.normal(0, 0.02, 60), np.repeat([0, 1], 30))
+        with pytest.raises(TypeError):
+            evaluate_predictions(preds, "Omitted")  # type: ignore[call-arg]
+        with pytest.raises(UnseededBenchmark):
+            evaluate_predictions(preds, "None", y_train_by_fold=None)
+        with pytest.raises(UnseededBenchmark):
+            evaluate_predictions(preds, "Partial", y_train_by_fold={0: rng.normal(0, 0.02, 50)})
+        with pytest.raises(UnseededBenchmark):
+            evaluate_predictions(preds, "Empty", y_train_by_fold={0: np.array([]), 1: np.array([])})
+        assert "unseeded_benchmark" not in evaluate_predictions(preds, "ok", y_train_by_fold=seeds_for(preds))
 
     def test_zero_return_baseline_scores_r2_oos_near_zero(self):
         """The benchmark every model has to beat, evaluated against itself."""
         rng = np.random.default_rng(16)
         y_true = rng.normal(0.0002, 0.015, 500)
         preds = predictions_frame(y_true, np.zeros(500), np.repeat([0, 1], 250))
-        result = evaluate_predictions(preds, "Zero return")
+        result = evaluate_predictions(preds, "Zero return", y_train_by_fold=seeds_for(preds, rng))
         assert abs(result["pooled"]["r2_oos"]) < 0.02
 
     def test_comparison_table_labels_price_metrics_as_secondary(self, capsys):
         rng = np.random.default_rng(17)
         preds = predictions_frame(rng.normal(0, 0.02, 50), rng.normal(0, 0.02, 50))
-        table = compare_evaluations([evaluate_predictions(preds, "A")])
+        table = compare_evaluations([evaluate_predictions(preds, "A", y_train_by_fold=seeds_for(preds))])
 
         assert "Price RMSE [2nd]" in table.columns
         assert "R2_OOS" in table.columns

@@ -164,12 +164,26 @@ predictions alone and set beside the committed seeded table:
 
 The seeded numbers come from the analysis path, which rebuilds each
 ticker's dataset from the raw cache to recover its training returns before
-evaluating (`analysis/cross_ticker_sweep.py`). At the time of writing,
-`aggregate` itself is unchanged and still evaluates cold; the files it
-writes (`per_run.csv`, `across_tickers.csv`, `seed_variance.csv`) are not
-committed, and no reported number is taken from them. That is stated here
-so that a reader who runs `python src/experiments.py --aggregate-only`
-knows what they will get.
+evaluating (`analysis/cross_ticker_sweep.py`). The cold path above is the
+code as it stood when the recurrence was found; it can be checked out at
+commit `a2995de` and run, which is how the table was produced.
+
+**The fix was structural.** After the recurrence we stopped relying on
+care. The training-returns argument of the evaluator is now required and
+keyword-only, so omitting it is a `TypeError` at the call site before
+anything runs; passing `None`, or a mapping that lacks any fold present in
+the predictions, raises `UnseededBenchmark` before any metric is computed;
+the `unseeded_benchmark` flag and its printed warning no longer exist,
+because a flag that nothing reads is not a defence (`src/evaluate.py`,
+`require_training_returns`). The aggregation path that recurred now takes a
+required loader for the raw data and rebuilds every fold's training returns
+from the run's own test windows (`src/experiments.py`, `aggregate`,
+`training_returns_for_run`); the cold call is no longer expressible. The
+regression test that missed the recurrence was replaced by one that asserts
+the refusal in all three forms and reproduces the +0.087 by building the
+cold benchmark by hand, so the size of what the refusal prevents stays on
+record (`tests/test_baselines.py`, `test_an_unseeded_benchmark_is_refused`;
+`tests/test_metrics.py`, `test_refuses_to_run_without_training_returns`).
 
 **What this shows.** Care is demonstrably insufficient. A correct
 specification, a fix by people who understood the failure, a flag on every
@@ -190,7 +204,8 @@ only one that survives a new call site.
   whatever the tests say.
 - Seed the benchmark from the training data of the fold, and make the seed
   argument impossible to omit at every call site: raise, rather than flag,
-  when it is missing. This pipeline flags; the flag was not enough.
+  when it is missing. This pipeline flagged, the flag was not enough, and
+  it now raises.
 - Print the benchmark's first few values for each fold. A one-observation
   mean of a crash-day return is visible to the eye.
 - Recompute aggregates from persisted predictions, never from memory, so
@@ -354,7 +369,8 @@ targets is in brackets.
    positive by more than sampling noise, the benchmark started cold. [4.2]
 3. **Benchmark seed mandatory, not flagged.** A missing training history
    should raise at every call site. A flag that nothing reads is not a
-   defence. [4.2]
+   defence; this pipeline's flag was read by nothing on the path that
+   recurred, and has been replaced by a required argument. [4.2]
 4. **Aggregates recomputed from persisted predictions**, so a suspect
    number can be regenerated and compared, as in the cold-versus-seeded
    table above. [4.2]
