@@ -25,6 +25,9 @@ def banner(t):
 
 def main():
     runs = load_runs(str(REPO / "results/predictions"))
+    comparators_dir = REPO / "results" / "comparators"
+    if comparators_dir.exists():
+        runs = pd.concat([runs, load_runs(str(comparators_dir))], ignore_index=True)
     print(f"loaded {len(runs):,} prediction rows from disk")
     print(f"  tickers {runs['ticker'].nunique()}, models {runs['model'].nunique()}, "
           f"seeds {sorted(runs['seed'].unique())}")

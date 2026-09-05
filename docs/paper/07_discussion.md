@@ -9,10 +9,13 @@ recorded is marked **[unsourced]**.
 ## 7.1 What the null result is and is not
 
 We found that, under a leak-free walk-forward protocol with correctly seeded
-benchmarks, three architectures trained on thirty-one scale-free technical
-and macro features did not forecast next-day log returns on thirty US large
-caps: no ticker had positive out-of-sample R² for the tree ensemble
-(§6.2), no model beat the majority class on the headline ticker (§6.1),
+benchmarks, three architectures and two linear comparators trained on
+thirty-one scale-free technical and macro features did not forecast
+next-day log returns on thirty US large caps: no ticker had positive
+out-of-sample R² for the tree ensemble, while the two comparators scored
+within 0.017 of zero on every ticker by fold median, positive on about
+half, which is what a forecast of the unconditional mean scores (§6.2); no
+model beat the majority class on the headline ticker (§6.1),
 nothing survived multiple-testing correction, and the two neural
 architectures were not distinguishable from each other across seeds (§6.5).
 We also found that the performance the previous version of this same
@@ -84,11 +87,29 @@ each from committed files.
   the twenty fold-fits (`results/AAPL__frozen__seed42_meta_fits.csv`). Its
   prediction spread was 4 to 5% of realised (README §4.2). Given the choice,
   the meta-learner's own cross-validation preferred to ignore its inputs.
+- **A standalone ridge regression on the same features collapsed the same
+  way, and so did a logistic classifier.** We added two well-regularised
+  linear comparators at the bottom of the capacity range (§5.5). On the
+  headline run the ridge chose the grid's ceiling of 10⁶ in 6 of its
+  twelve folds, where its prediction spread was near zero relative to the
+  training returns and the sum of its absolute coefficients was about
+  10⁻⁵ against an intercept of about 10⁻³; in the remaining folds it chose
+  10³ to 10⁴ and spread 4 to 12% of the training spread
+  (`results/linear_fits_headline.csv`). Across the thirty sweep tickers,
+  357 fits, it never chose a penalty below 10³, chose the ceiling in
+  95, and its median prediction spread was 4.2% of the training spread
+  (`results/linear_fits_sweep.csv`). The logistic direction classifier chose
+  the smallest inverse penalty on its grid, 10⁻⁴, in 207 of 357 sweep fits
+  and 10 of 12 headline fits, and its fitted probabilities had a standard
+  deviation of 0.017 around the base rate of about 0.52: a near-constant
+  vote for "up". A model with almost no capacity to misbuild, given the
+  choice by its own cross-validation, chose to predict the mean.
 
-These are three independent mechanisms pointing at the same conclusion:
+These are four independent mechanisms pointing at the same conclusion:
 there was no learnable conditional signal in these features at this
-horizon for these models, rather than an optimisation failure that a better
-optimiser would have repaired. We add the symmetric point that the burden of
+horizon, rather than an optimisation failure that a better optimiser would
+have repaired; the linear comparators have no optimiser to fail, and they
+reached the same place. We add the symmetric point that the burden of
 proof is not ours alone. Papers claiming success at this horizon rarely
 report a zero-return baseline at all, and §4 shows what happens to a result
 when one is added.

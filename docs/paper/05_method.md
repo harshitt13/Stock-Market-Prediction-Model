@@ -307,6 +307,27 @@ positional encoding, three encoder layers with 4 heads, feed-forward width
 32 units with ReLU and dropout, then one output (`DEFAULT_PARAMS`,
 `TimeSeriesTransformer`).
 
+**Two linear comparators** (`src/linear_models.py`). To span the capacity
+range from linear to Transformer with something at its bottom that has
+almost no capacity to misbuild, two well-regularised linear models run on
+the same folds and the same contract as every other model, in the headline
+run and on all thirty sweep tickers. `Ridge (returns)` standardises the 31
+features on the fold's training rows and fits `RidgeCV` over the
+meta-learner's penalty grid, 10⁻³ to 10⁶, to the next-day log return; its
+selected penalty and the ratio of its prediction spread to the training
+return spread are recorded per fold (`results/linear_fits_headline.csv`,
+`results/linear_fits_sweep.csv`; `analysis/run_linear_comparators.py`).
+`Logistic (direction)` fits an L2 logistic regression to the sign of the
+return with the inverse penalty chosen from 10⁻⁴ to 10⁴ by a
+time-respecting inner cross-validation on the training rows
+(`TimeSeriesSplit`, five splits); because the contract needs a return-scale
+number, its output is (2*p* − 1) times the training fold's return standard
+deviation, so the sign is the class decision and the magnitude is
+confidence at the training scale. Its R²_OOS is reported for completeness
+and is not a return forecast. Neither comparator feeds the meta-learner,
+whose inputs remain the three base models, so that no reported
+meta-learner number changed when they were added.
+
 **Stacked meta-learner with VIX gating** (`src/meta_ensemble.py`). For fold
 *k* ≥ 2, a ridge regression is fitted on the out-of-fold predictions that the
 three base models made for folds 0 to *k*−1, with the realised return as the
@@ -384,10 +405,12 @@ R²_OOS = 1 − SSE_model / SSE_benchmark, where the benchmark for each day is
 the expanding mean of all returns before it. The benchmark is **seeded with
 the fold's training returns** and extended with realised test returns
 (`expanding_mean_benchmark`); a benchmark that restarts from nothing at each
-fold's first day is the cold-start artefact measured in §4, and the
-evaluation function returns an `unseeded_benchmark` flag whenever it has been
-called without the training returns so that the omission cannot pass
-silently (`evaluate_predictions`). R²_OOS is legitimately negative when the
+fold's first day is the cold-start artefact measured in §4. The training
+returns are a required argument of the evaluation function: omitting them
+is an error at the call site, and a mapping that lacks any fold raises
+before a metric is computed (`evaluate_predictions`,
+`require_training_returns`; §4.2 records why this is structural rather than
+a flag). R²_OOS is legitimately negative when the
 model is worse than the mean. RMSE and MAE are reported in basis points of
 log return. Every metric is also computed per fold, and the standard
 deviation across folds is reported beside the pooled value
@@ -433,7 +456,7 @@ is at least 5 because below that it divides by nothing
 from exposure by regressing the strategy's daily returns on buy-and-hold's,
 *r*ₛ = α + β·*r*ₘ + *e*; α is annualised by 252 and its t-statistic uses plain
 OLS standard errors, not a HAC estimator, and should be read as indicative
-(`market_adjusted`). Because nine strategies are tested for alpha on the same
+(`market_adjusted`). Because eleven strategies are tested for alpha on the same
 asset (buy-and-hold is the market and the never-trading zero-return rule has
 no alpha to test; README §3.4), the p-values are corrected by the
 Holm-Bonferroni step-down

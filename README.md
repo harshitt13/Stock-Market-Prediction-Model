@@ -92,6 +92,8 @@ secondary. `results/fold_aggregates_headline.csv`,
 | Tree Ensemble | 52.82 | 54.01 | −1.19 | 0.0586 | **−0.0081** | −0.0152 ± 0.0326 | −0.02037 | 183.4 |
 | BiLSTM ᵃ | 52.47 | 54.01 | −1.54 | 0.7159 | **−0.0009** | −0.0043 ± 0.0113 | −0.00499 | 182.0 |
 | Transformer ᵃ | 52.60 | 54.01 | −1.41 | 0.7065 | **−0.0003** | +0.0011 ± 0.0074 | +0.00102 | 181.5 |
+| Ridge (returns) | 53.28 | 54.01 | −0.73 | 0.2698 | **0.0000** | +0.0004 ± 0.0033 | +0.00124 | 181.5 |
+| Logistic (direction) | 53.88 | 54.01 | −0.13 | 0.5217 | **−0.0004** | −0.0008 ± 0.0027 | −0.00027 | 181.6 |
 | Hybrid meta (+VIX) ᵇ | 52.65 | 54.01 | −1.37 | 0.7480 | **+0.0011** | −0.0022 ± 0.0109 | −0.00029 | 181.6 |
 | Hybrid meta (no VIX) ᵇ | 52.30 | 54.01 | −1.71 | 0.5926 | **+0.0010** | −0.0016 ± 0.0120 | −0.00197 | 181.8 |
 | Zero return | 45.99 | 54.01 | −8.02 | — | **−0.0023** | −0.0037 ± 0.0063 | −0.00276 | 181.8 |
@@ -156,6 +158,15 @@ Tree Ensemble across all 30:
 | Pesaran-Timmermann | 2 / 30 (AVGO, META) | 1.5 | **0 / 30** | 0.446 |
 | alpha | 8 / 30 | 1.5 | **0 / 30** | <0.001 |
 
+The two linear comparators (`src/linear_models.py`; `results/comparators/`)
+on the same thirty tickers: R²_OOS within 0.017 of zero by fold median on
+every ticker, positive on 12 (ridge) and 18 (logistic) of 30, which is what a
+forecast of the historical mean scores; DA − majority mean −0.48 and −0.28 pp;
+PT p < 0.05 on 5 and 4 of 30 against 1.5 expected (binomial p = 0.016 and
+0.061); Holm within model 0 and 1; Holm across all 90 direction tests of the
+three models, 0; alpha hits 1+1 and 0+2 of 30 (negative + positive), none
+surviving Holm. Paper §6.2 discusses the excess of uncorrected directional hits.
+
 Two PT hits against 1.5 expected is chance. The eight alpha hits look alarming
 until you check the sign: **all eight are t < −1.96**, none positive. The tree
 underperforms a rising market because it holds ~50% exposure at beta 0.44–0.65;
@@ -206,17 +217,20 @@ Long/flat on the predicted sign, 7.5bps round-trip, buy-and-hold on the same
 
 | Model | Alpha ann. | t(alpha) | p Holm | Beta | Exposure | Sharpe net |
 |---|---|---|---|---|---|---|
-| Tree Ensemble | +0.0740 | 1.71 | **0.698** | 0.663 | 0.608 | 1.166 |
-| Hybrid meta (+VIX) | −0.0419 | −1.88 | 0.545 | 0.937 | 0.888 | 0.861 |
+| Tree Ensemble | +0.0740 | 1.71 | **0.873** | 0.663 | 0.608 | 1.166 |
+| Hybrid meta (+VIX) | −0.0419 | −1.88 | 0.667 | 0.937 | 0.888 | 0.861 |
 | Transformer | +0.0156 | 0.39 | 1.000 | 0.742 | 0.845 | 0.963 |
+| Ridge (returns) | +0.0390 | 1.23 | 1.000 | 0.860 | 0.846 | 1.115 |
+| Logistic (direction) | −0.0162 | −1.05 | 1.000 | 0.971 | 0.985 | 0.973 |
 | BiLSTM | −0.0257 | −0.93 | 1.000 | 0.899 | 0.848 | 0.896 |
 | Historical mean | −0.0000 | −1.00 | 1.000 | **1.000** | **1.000** | 1.045 |
 | Buy and hold | 0.0000 | — | — | 1.000 | 1.000 | 1.045 |
 
 **Zero strategies significant, corrected or uncorrected.** Simulating the null
-gives E[max‖t‖] = 1.84 across the nine tests if independent and 1.40 at ρ=0.8
-(P(max‖t‖ ≥ 1.71) = 0.56 and 0.27), so the tree's t = 1.71 is what no-alpha
-looks like when you look nine times.
+gives E[max‖t‖] = 1.92 across the eleven tests if independent and 1.44 at ρ=0.8
+(P(max‖t‖ ≥ 1.71) = 0.63 and 0.29), so the tree's t = 1.71 is what no-alpha
+looks like when you look eleven times. The count is read from the economics
+table (`results/aapl_economics_holm.csv`), never typed in.
 
 Raw Sharpe cannot distinguish skill from market exposure: `Historical mean` has
 beta 1.000 and exposure 1.000 — it *is* buy-and-hold, holding a long position
@@ -319,7 +333,7 @@ Source: `results/headline/AAPL__frozen__seed42.parquet` and `docs/frozen_aapl_ra
 
 | figure | what it shows |
 |---|---|
-| [`aapl_predicted_vs_realised.png`](docs/figures/aapl_predicted_vs_realised.png) | Predicted vs realised next-day return, one panel per model. **Every model is a horizontal band.** Correlations are +0.006 to +0.068; prediction spread is 4–23% of realised spread. This is the central picture. |
+| [`aapl_predicted_vs_realised.png`](docs/figures/aapl_predicted_vs_realised.png) | Predicted vs realised next-day return, one panel per model. **Every model is a horizontal band.** Correlations are −0.012 to +0.068 across the seven panels; prediction spread is 2–23% of realised spread. This is the central picture. |
 | [`aapl_prediction_dispersion.png`](docs/figures/aapl_prediction_dispersion.png) | Distribution of each model's predictions beside the realised distribution. The models that pick a level rather than forecast collapse to a spike. |
 | [`aapl_model_comparison.png`](docs/figures/aapl_model_comparison.png) | Directional accuracy minus the majority-class rate, and R²_OOS, per model, with zero lines. Models first, baselines last. |
 | [`aapl_alpha_beta.png`](docs/figures/aapl_alpha_beta.png) | Annualised alpha with its t-statistic (red if \|t\| > 1.96 — none is) and beta against buy-and-hold. `Historical mean` has beta 1.000: it *is* the market. |
@@ -491,7 +505,7 @@ Price is a display quantity only: `close_hat[t+1] = close_t[t] * exp(y_hat[t])`.
 | **Scalers fitted on training folds only** | `StandardScaler`, not MinMax: MinMax maps the training range onto [0,1] and puts every larger test move outside it. |
 | **Offline tests** | `yfinance` is imported lazily inside `_get_ticker()`; a subprocess test asserts it is not in `sys.modules` after importing the data layer. |
 
-**Test suite: 331 tests.** The most important is
+**Test suite: 341 tests.** The most important is
 `test_features_do_not_depend_on_future_rows`.
 
 ---
@@ -596,11 +610,12 @@ regenerable).
 | `src/meta_ensemble.py` | Fold-respecting stacking, VIX gating, interval calibration. |
 | `src/evaluate.py` | Return-space metrics, Pesaran-Timmermann, R²_OOS, Diebold-Mariano. |
 | `src/backtest.py` | Economics: alpha/beta, Holm correction, cost and lag stress. |
+| `src/linear_models.py` | Two well-regularised linear comparators (RidgeCV on returns, L2 logistic on direction) on the same contract. |
 | `src/experiments.py` | Multi-ticker sweep, parallel execution, parquet persistence. |
 | `src/main.py` | CLI orchestrator. |
 | `analysis/` | One-shot analyses that read `results/` without retraining. |
 | `docs/` | Frozen input and the before/after comparison tables. |
-| `tests/` | 331 tests, including the mutation-tested leakage suite. |
+| `tests/` | 341 tests, including the mutation-tested leakage suite. |
 
 ---
 
@@ -654,7 +669,10 @@ which is what made them dangerous.
 4. **A cold R²_OOS benchmark flatters everything.** Starting the expanding-mean
    benchmark from nothing made the zero-return baseline score +0.087 instead of
    −0.005. *This bug recurred during analysis of the 30-ticker sweep and was
-   caught by the zero-return baseline scoring +0.035 on all 30 tickers.*
+   caught by the zero-return baseline scoring +0.035 on all 30 tickers.* The
+   fix is now structural: the training returns are a required argument of
+   the evaluator, omitting them is an error, and the flag that recorded the
+   omission is gone (`src/evaluate.py`, `require_training_returns`).
 5. **Window length manufactures significance.** The same VIX-gating DM test
    gives p = 0.0203 favouring −VIX on a 420-day window and p = 0.5519 favouring
    +VIX on 2520 days. Same code, same statistic, opposite signs.

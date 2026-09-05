@@ -27,7 +27,7 @@ def test_headline_parquet_is_the_table_1_run():
     assert set(y_train) == set(range(12))
     # Common window: folds 2..11, the first two produce no meta prediction.
     assert all(len(frame) == 2520 for frame in primary.values())
-    assert len(comparison) == len(primary) == 10
+    assert len(comparison) == len(primary) == 12  # ten models plus the two linear comparators
     assert str(ds.target_date[folds[0][1][0]])[:10] == "2014-05-29"
 
 

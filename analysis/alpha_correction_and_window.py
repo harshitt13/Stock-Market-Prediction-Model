@@ -21,26 +21,33 @@ def banner(t):
 
 
 def load_aapl_predictions():
-    """Rebuild per-model frames from the after-run's aligned output."""
-    wide = pd.read_csv(REPO / "data/aligned_predictions.csv", parse_dates=["target_date"])
-    models = [c[len("y_pred_"):] for c in wide.columns if c.startswith("y_pred_")]
-    n = len(wide)
-    return {
-        name: make_predictions(
-            target_date=wide["target_date"],
-            fold_id=np.zeros(n, dtype=int),
-            close_t=wide["close_t"].to_numpy(float),
-            y_true=wide["y_true"].to_numpy(float),
-            y_pred=wide[f"y_pred_{name}"].to_numpy(float),
+    """Every model of the headline run, restricted to the common evaluation
+    window, from the committed parquet files under results/headline/ (the
+    headline run and the linear comparators). The strategy count that the
+    Holm correction and the null simulation use is whatever this returns;
+    it is never typed in."""
+    from contracts import common_evaluation_window, restrict_all
+    from experiments import load_runs
+
+    runs = load_runs(str(REPO / "results" / "headline"))
+    runs = runs[(runs["ticker"] == "AAPL") & (runs["regime"] == "frozen")]
+    frames = {}
+    for model, block in runs.groupby("model"):
+        block = block.sort_values("target_date").reset_index(drop=True)
+        frames[model] = make_predictions(
+            target_date=block["target_date"],
+            fold_id=block["fold_id"].to_numpy(int),
+            close_t=block["close_t"].to_numpy(float),
+            y_true=block["y_true"].to_numpy(float),
+            y_pred=block["y_pred"].to_numpy(float),
         )
-        for name in models
-    }
+    return restrict_all(frames, common_evaluation_window(frames))
 
 
 def main():
     predictions = load_aapl_predictions()
     n_days = len(next(iter(predictions.values())))
-    print(f"AAPL after-run, common window: {n_days} forecast days, "
+    print(f"AAPL headline run (results/headline/), common window: {n_days} forecast days, "
           f"{len(predictions)} strategies")
 
     banner("1a. ECONOMICS WITH HOLM-CORRECTED p(alpha)")
@@ -108,9 +115,9 @@ def main():
   roughly one time in twenty by construction, and it is not possible to tell
   from inside that window which one you have.""")
 
-    table.to_csv(Path(__file__).parent / "aapl_economics_holm.csv")
-    stressed.to_csv(Path(__file__).parent / "tree_alpha_stress.csv", index=False)
-    artefact.to_csv(Path(__file__).parent / "window_artefact.csv", index=False)
+    table.to_csv(REPO / "results" / "aapl_economics_holm.csv")
+    stressed.to_csv(REPO / "results" / "tree_alpha_stress.csv", index=False)
+    artefact.to_csv(REPO / "results" / "window_artefact.csv", index=False)
 
 
 if __name__ == "__main__":
