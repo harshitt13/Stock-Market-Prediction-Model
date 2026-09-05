@@ -5,9 +5,9 @@ the real run_pipeline with yfinance stubbed by the fixture, tiny epochs and
 plots off.
 """
 
+
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 import pytest
 
@@ -15,8 +15,7 @@ import fetch_data
 import main
 from contracts import validate_predictions
 from model_utils import DEMO_FORECAST_CAVEAT
-
-FIXTURE_PATH = Path(__file__).parent / "fixtures" / "aapl_raw.csv"
+from conftest import FIXTURE_PATH
 
 
 @pytest.fixture(scope="module")

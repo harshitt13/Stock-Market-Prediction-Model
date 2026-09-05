@@ -6,7 +6,6 @@ may come from a model that saw its own row, and the fold structure must be
 respected rather than approximated by an 80/20 split.
 """
 
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -16,7 +15,6 @@ from contracts import make_predictions, validate_predictions
 from dataset import build_dataset
 from fetch_data import engineer_features
 from meta_ensemble import (
-    MIN_TRAIN_FOLDS,
     build_meta_frame,
     compare_vix_gating,
     coverage_report,
@@ -28,8 +26,8 @@ from meta_ensemble import (
     scale_for_horizon,
     vix_tercile_weights,
 )
+from conftest import FIXTURE_PATH
 
-FIXTURE_PATH = Path(__file__).parent / "fixtures" / "aapl_raw.csv"
 N_FOLDS = 6
 FOLD_SIZE = 60
 

@@ -25,6 +25,7 @@ from xgboost import XGBRegressor
 from dataset import Dataset
 from model_utils import (
     assemble_predictions,
+    clip_fold,
     default_folds,
     fold_predictions,
     recursive_demo_forecast,
@@ -116,8 +117,7 @@ def train_tree_model(
     last_model = None
 
     for fold_id, (train_idx, test_idx) in enumerate(fold_indices):
-        train_idx = np.asarray(train_idx)[np.asarray(train_idx) < n]
-        test_idx = np.asarray(test_idx)[np.asarray(test_idx) < n]
+        train_idx, test_idx = clip_fold(train_idx, test_idx, n)
         if len(train_idx) == 0 or len(test_idx) == 0:
             print(f"  Tree fold {fold_id + 1}: skipped, empty train or test")
             continue

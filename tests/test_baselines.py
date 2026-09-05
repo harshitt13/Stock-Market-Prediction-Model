@@ -1,6 +1,5 @@
 """Tests for the baselines (REFACTOR_PLAN.md section 6)."""
 
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -13,14 +12,12 @@ from baselines import (
     historical_mean_baseline,
     random_sign_baseline,
     run_all_baselines,
-    zero_return_baseline,
 )
 from contracts import ContractViolation, align_predictions, validate_predictions
 from dataset import build_dataset
 from evaluate import directional_accuracy, evaluate_predictions, r2_oos
 from fetch_data import engineer_features
-
-FIXTURE_PATH = Path(__file__).parent / "fixtures" / "aapl_raw.csv"
+from conftest import FIXTURE_PATH
 
 
 @pytest.fixture(scope="module")

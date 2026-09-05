@@ -9,7 +9,6 @@ Kept fast deliberately -- a short lookback, few epochs, a slice of the
 fixture. These assert the plumbing, not predictive performance.
 """
 
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -30,8 +29,8 @@ from model_utils import (
 )
 from transformer_model import train_transformer_model
 from tree_model import train_tree_model
+from conftest import FIXTURE_PATH
 
-FIXTURE_PATH = Path(__file__).parent / "fixtures" / "aapl_raw.csv"
 
 LOOKBACK = 20
 EPOCHS = 3

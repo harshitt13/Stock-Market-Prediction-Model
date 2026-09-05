@@ -38,3 +38,7 @@ Thumbs.db
 # `python src/fetch_universe.py`. The experiment OUTPUTS under
 # results/predictions/ are committed; this input cache is not.
 results/raw/
+
+# Tool caches
+.mypy_cache/
+.dist/

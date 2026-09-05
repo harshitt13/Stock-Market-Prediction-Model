@@ -450,6 +450,7 @@ def _make_plots(dataset, folds, base_results, aligned, comparison) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """The CLI. Every option maps onto a run_pipeline() argument."""
     parser = argparse.ArgumentParser(
         description="Hybrid stock predictor - walk-forward validated, "
         "return-space evaluation",
@@ -524,6 +525,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    """CLI entry point."""
     args = build_parser().parse_args()
 
     result = run_pipeline(

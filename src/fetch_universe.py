@@ -13,7 +13,6 @@ import os
 import time
 from typing import Dict, List, Optional, Sequence
 
-import pandas as pd
 
 from experiments import DEFAULT_TICKERS, SURVIVORSHIP_WARNING
 
@@ -21,6 +20,7 @@ RAW_DIR = os.path.join("results", "raw")
 
 
 def raw_path(ticker: str, raw_dir: str = RAW_DIR) -> str:
+    """Where one ticker's cached raw CSV lives."""
     return os.path.join(raw_dir, f"{ticker.replace('/', '-')}.csv")
 
 
@@ -76,6 +76,7 @@ def fetch_universe(
 
 
 def main() -> None:
+    """CLI: fetch and cache the ticker universe, sequentially."""
     parser = argparse.ArgumentParser(description="Cache the sweep universe")
     parser.add_argument("--tickers", nargs="*", default=DEFAULT_TICKERS)
     parser.add_argument("--start", default="2010-01-01")

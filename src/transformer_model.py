@@ -27,12 +27,13 @@ from dataset import Dataset, build_sequences
 from model_utils import (
     apply_feature_scaler,
     assemble_predictions,
+    clip_fold,
     default_folds,
     fit_feature_scaler,
     fit_target_scaler,
     fold_predictions,
-    recursive_demo_forecast,
     scale_targets,
+    sequence_demo_forecast,
     unscale_targets,
 )
 
@@ -69,6 +70,7 @@ class PositionalEncoding(nn.Module):
         self.register_buffer("pe", pe.unsqueeze(0))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Add sinusoidal position encoding, then dropout."""
         return self.dropout(x + self.pe[:, : x.size(1), :])
 
 
@@ -102,7 +104,8 @@ class TimeSeriesTransformer(nn.Module):
             nn.Linear(d_model // 2, 1),
         )
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """(batch, lookback, features) -> (batch,) scaled return."""
         x = self.pos_encoder(self.input_linear(x))
         output = self.transformer_encoder(x)[:, -1, :]
         return self.regressor(output).squeeze(-1)
@@ -132,7 +135,7 @@ def _run_optuna_on_training_data(
         print("  Not enough training windows to tune; using defaults.")
         return dict(DEFAULT_PARAMS)
 
-    def objective(trial):
+    def objective(trial: optuna.Trial) -> float:
         d_model = trial.suggest_categorical("d_model", [32, 64, 128])
         nhead = trial.suggest_categorical("nhead", [2, 4, 8])
         if d_model % nhead != 0:
@@ -285,8 +288,7 @@ def train_transformer_model(
     last_y_scaler = None
 
     for fold_id, (train_idx, test_idx) in enumerate(fold_indices):
-        train_idx = np.asarray(train_idx)[np.asarray(train_idx) < n]
-        test_idx = np.asarray(test_idx)[np.asarray(test_idx) < n]
+        train_idx, test_idx = clip_fold(train_idx, test_idx, n)
         if len(train_idx) == 0 or len(test_idx) == 0:
             print(f"  Transformer fold {fold_id + 1}: skipped, empty train or test")
             continue
@@ -393,26 +395,20 @@ def _demo_forecast(
     model, x_scaler, y_scaler, dataset: Dataset, history, lookback: int, horizon: int
 ) -> pd.DataFrame:
     """Recursive forecast for display. Never enters a metrics table."""
-    if history is None:
-        raise ValueError("demo_forecast_days requires demo_history (the raw frame)")
-
-    feature_names = list(dataset.feature_names)
     model.eval()
 
-    def predict_next_return(engineered: pd.DataFrame) -> float:
-        window = engineered[feature_names].to_numpy(dtype=float)[-lookback:]
-        if len(window) < lookback:
-            raise ValueError(
-                f"demo forecast needs {lookback} engineered rows, got {len(window)}"
-            )
-        batch = x_scaler.transform(window).reshape(1, lookback, len(feature_names))
+    def predict_scaled_batch(batch: np.ndarray) -> np.ndarray:
         with torch.no_grad():
-            scaled = model(torch.tensor(batch.astype(np.float32)).to(DEVICE)).cpu().numpy()
-        return float(unscale_targets(y_scaler, scaled)[0])
+            return model(torch.tensor(batch.astype(np.float32)).to(DEVICE)).cpu().numpy()
 
-    forecast = recursive_demo_forecast(
-        history, predict_next_return, horizon, label="Predicted Close Transformer"
+    return sequence_demo_forecast(
+        predict_scaled_batch,
+        x_scaler,
+        y_scaler,
+        dataset.feature_names,
+        history,
+        lookback,
+        horizon,
+        label="Predicted Close Transformer",
+        output_path="data/future_predictions_transformer.csv",
     )
-    os.makedirs("data", exist_ok=True)
-    forecast.to_csv("data/future_predictions_transformer.csv", index=False)
-    return forecast

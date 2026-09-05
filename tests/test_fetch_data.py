@@ -24,13 +24,7 @@ from fetch_data import (
     fetch_stock_data,
     save_to_csv,
 )
-
-FIXTURE_PATH = Path(__file__).parent / "fixtures" / "aapl_raw.csv"
-
-
-def load_fixture() -> pd.DataFrame:
-    """Raw AAPL OHLCV plus macro levels. No network access."""
-    return pd.read_csv(FIXTURE_PATH, parse_dates=["Date"])
+from conftest import load_fixture
 
 
 class _FakeTicker:

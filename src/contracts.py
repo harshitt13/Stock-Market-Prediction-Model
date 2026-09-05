@@ -137,17 +137,21 @@ class EvaluationWindow:
 
     @property
     def n(self) -> int:
+        """Number of forecast days in the window."""
         return len(self.dates)
 
     @property
     def start(self) -> pd.Timestamp:
+        """First forecast day."""
         return pd.Timestamp(self.dates[0])
 
     @property
     def end(self) -> pd.Timestamp:
+        """Last forecast day."""
         return pd.Timestamp(self.dates[-1])
 
     def describe(self) -> str:
+        """One-line summary for logs and reports."""
         return (
             f"{self.n} forecast days, "
             f"{self.start:%Y-%m-%d} to {self.end:%Y-%m-%d}"

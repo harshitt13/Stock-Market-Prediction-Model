@@ -84,7 +84,7 @@ MACRO_FEATURE_COLUMNS = [
 FEATURE_COLUMNS: list[str] = BASE_FEATURE_COLUMNS + MACRO_FEATURE_COLUMNS
 
 
-def compute_rsi(series, window=14):
+def compute_rsi(series: pd.Series, window: int = 14) -> pd.Series:
     """Compute Relative Strength Index."""
     delta = series.diff()
     gain = delta.where(delta > 0, 0.0).rolling(window=window).mean()
@@ -94,7 +94,7 @@ def compute_rsi(series, window=14):
     return rsi.replace([np.inf, -np.inf], 100.0).fillna(50.0)
 
 
-def compute_atr(high, low, close, window=14):
+def compute_atr(high: pd.Series, low: pd.Series, close: pd.Series, window: int = 14) -> pd.Series:
     """Compute Average True Range."""
     tr1 = high - low
     tr2 = (high - close.shift(1)).abs()
@@ -223,7 +223,7 @@ def _get_ticker(symbol: str):
     return yf.Ticker(symbol)
 
 
-def fetch_stock_data(ticker_symbol, start_date, end_date=None):
+def fetch_stock_data(ticker_symbol: str, start_date: str, end_date: str | None = None) -> pd.DataFrame | None:
     """
     Fetch stock data from Yahoo Finance and engineer the leak-free feature set.
 
@@ -290,7 +290,7 @@ def fetch_stock_data(ticker_symbol, start_date, end_date=None):
         return None
 
 
-def save_to_csv(df):
+def save_to_csv(df: pd.DataFrame) -> None:
     """
     Save the DataFrame to a CSV file in the 'data' directory.
 

@@ -296,7 +296,7 @@ def _sharpe_cell(value: float):
     return NOT_APPLICABLE if not np.isfinite(value) else round(value, 3)
 
 
-def holm_bonferroni(p_values, alpha: float = 0.05):
+def holm_bonferroni(p_values, alpha: float = 0.05) -> np.ndarray:
     """Holm-Bonferroni step-down correction. Returns adjusted p-values.
 
     Testing ten strategies for alpha and reporting the largest t-statistic is

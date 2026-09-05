@@ -360,7 +360,9 @@ def across_tickers(per_run: pd.DataFrame) -> pd.DataFrame:
     )
 
 
-def write_aggregates(results_dir: str = PREDICTIONS_DIR, out_dir: str = RESULTS_DIR):
+def write_aggregates(
+    results_dir: str = PREDICTIONS_DIR, out_dir: str = RESULTS_DIR
+) -> Dict[str, pd.DataFrame]:
     """Recompute every aggregate from the persisted runs and write them out."""
     os.makedirs(out_dir, exist_ok=True)
     per_run = aggregate(results_dir)
@@ -392,10 +394,10 @@ CHEAP_MODELS = ("tree", "baselines")
 ALL_MODELS = ("tree", "lstm", "transformer", "baselines", "meta")
 
 
-def cached_loader(raw_dir: str):
+def cached_loader(raw_dir: str) -> Callable[..., Optional[pd.DataFrame]]:
     """A load_raw callable that reads the cached CSV for a ticker."""
 
-    def load(ticker, start, end):
+    def load(ticker: str, start: str, end: Optional[str]) -> Optional[pd.DataFrame]:
         path = os.path.join(raw_dir, f"{ticker.replace('/', '-')}.csv")
         if not os.path.exists(path):
             return None
@@ -404,7 +406,9 @@ def cached_loader(raw_dir: str):
     return load
 
 
-def fold_return_diagnostics(dataset, folds, ticker: str, regime: str = "full"):
+def fold_return_diagnostics(
+    dataset, folds, ticker: str, regime: str = "full"
+) -> pd.DataFrame:
     """Per-fold train/test return-distribution comparison.
 
     A walk-forward fold trains on one return distribution and is scored on the
@@ -522,7 +526,7 @@ def sweep_parallel(
     epochs: int = 100,
     max_workers: Optional[int] = None,
     torch_threads: int = 2,
-):
+) -> Dict[str, Any]:
     """Run the sweep across tickers in a process pool.
 
     Heavy tasks are submitted first so the long neural runs start immediately
@@ -599,6 +603,7 @@ def sweep_parallel(
 
 
 def main() -> None:
+    """CLI: run a sweep (serial or --parallel) and recompute aggregates."""
     import argparse
 
     parser = argparse.ArgumentParser(description="Sweep tickers, regimes and seeds")

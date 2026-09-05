@@ -3,13 +3,11 @@
 Offline: the loader is stubbed with the fixture, so no test hits the network.
 """
 
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
 
-import experiments
 from experiments import (
     DEFAULT_SEEDS,
     DEFAULT_TICKERS,
@@ -27,8 +25,7 @@ from experiments import (
     write_aggregates,
 )
 from fetch_data import engineer_features
-
-FIXTURE_PATH = Path(__file__).parent / "fixtures" / "aapl_raw.csv"
+from conftest import FIXTURE_PATH
 
 
 @pytest.fixture(scope="module")

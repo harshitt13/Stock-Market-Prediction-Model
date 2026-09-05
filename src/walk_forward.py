@@ -143,7 +143,7 @@ def aggregate_fold_results(
     }
 
 
-def print_fold_summary(folds: List[Tuple[np.ndarray, np.ndarray]], dates=None):
+def print_fold_summary(folds: List[Tuple[np.ndarray, np.ndarray]], dates=None) -> None:
     """Pretty-print walk-forward fold boundaries."""
     print(f"\n{'='*60}")
     print(f"  Walk-Forward Validation - {len(folds)} Folds")
