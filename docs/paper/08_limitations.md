@@ -2,7 +2,7 @@
 
 We state these at length because the credibility of a null result rests on
 how completely its boundaries are drawn. Every number below was read from
-a committed file in the repository at commit `ead69ec` (results tagged
+a committed file in the repository at the results commit recorded in §9.1 (results tagged
 `v1.0-results` at `3fa7f8b`), or from the message of a commit in its
 history, and the source is named beside it. Anything not so recorded is
 marked **[unsourced]**.

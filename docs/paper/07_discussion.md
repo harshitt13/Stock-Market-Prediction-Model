@@ -1,7 +1,7 @@
 # 7. Discussion
 
 Every number in this section was read from a committed file in the
-repository at commit `ead69ec` (results tagged `v1.0-results` at
+repository at the results commit recorded in §9.1 (results tagged `v1.0-results` at
 `3fa7f8b`), or recomputed from committed predictions with the committed
 evaluation code, and the source is named beside it. Anything not so
 recorded is marked **[unsourced]**.

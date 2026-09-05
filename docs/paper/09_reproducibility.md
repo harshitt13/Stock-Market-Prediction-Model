@@ -12,10 +12,10 @@ reproducible bit for bit. Anything not so recorded is marked
 | What | Where |
 |---|---|
 | Repository | `https://github.com/harshitt13/Stock-Market-Prediction-Model`, branch `refactor/returns-pipeline` |
-| Results tag | `v1.0-results`, commit `3fa7f8b` (the seed study and the analysis scripts) |
+| Results tag | `v1.0-results`, commit `3fa7f8b` (the seed study and the analysis scripts; the linear comparators, the correlated null and the shift tests were committed after the tag and are covered by the results commit below) |
 | The 30-ticker sweep | commit `baeca9f` |
-| The headline predictions and figures | commit `5e80afb` |
-| The code state this text was written against | commit `ead69ec` |
+| The headline predictions and figures | commit `722b74f` (first frozen at `5e80afb`; regenerated with the two linear comparators at `722b74f`) |
+| The results this text was written against | commit `33ff895`, the last commit before this document was built that changed a file under `results/`, `docs/figures/`, `src/` or `analysis/` |
 | The pre-refactor run behind the "before" table | commit `3933168` (commit `d26ad59` records the run) |
 
 The paper's section files live under `docs/paper/`, each committed
@@ -78,7 +78,7 @@ without retraining, by the scripts under `analysis/` (README §9;
 | `results/linear_fits_headline.csv`, `results/linear_fits_sweep.csv` | the comparators' selected penalties and prediction dispersion per fold | §5.5, §7.3 |
 | `results/hit_count_null.csv`, `results/mean_pt_null.csv`, `results/cross_ticker_correlation.csv` | the correlated null for the directional hit counts and for the mean statistic, both tails and the sign split, and the measured cross-ticker and cross-model correlations | §6.2 |
 | `results/predictions/` | 595,224 predictions of the 30-ticker sweep | §6.2, §6.3, the cross-ticker figure |
-| `results/per_ticker_model.csv` | 200 rows of per-ticker, per-model metrics with the seeded benchmark | Table 2, §6.2 |
+| `results/per_ticker_model.csv` | 260 rows of per-ticker, per-model metrics with the seeded benchmark | Table 2, §6.2 |
 | `results/fold_diagnostics.csv` | 357 fold-ticker rows of train/test return statistics and the KS test | §6.4 |
 | `results/fold_r2_oos.csv`, `results/shift_tests.csv` | the tree's per-fold R²_OOS and directional accuracy on the 357 pairs with each pair's KS result, and the regression and shifted-against-stable tests fitted on them | §6.4, §8.4 |
 | `results/tree_exposure.csv` | the tree's per-ticker prediction dispersion: mean and sd of predicted returns against the sd of realised returns, fraction of positive predictions, sign-flip rate | §7.3 |
