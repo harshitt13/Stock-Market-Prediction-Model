@@ -76,7 +76,7 @@ without retraining, by the scripts under `analysis/` (README §9;
 | `results/headline/AAPL__frozen__seed42__linear.parquet` | the two linear comparators on the headline run, same schema, twelve folds | Table 1, Table 3 |
 | `results/comparators/` | the two linear comparators on all thirty sweep tickers, one parquet per ticker | Table 2, §6.2 |
 | `results/linear_fits_headline.csv`, `results/linear_fits_sweep.csv` | the comparators' selected penalties and prediction dispersion per fold | §5.5, §7.3 |
-| `results/hit_count_null.csv`, `results/cross_ticker_correlation.csv` | the correlated null for the directional hit counts, and the measured cross-ticker and cross-model correlations | §6.2 |
+| `results/hit_count_null.csv`, `results/mean_pt_null.csv`, `results/cross_ticker_correlation.csv` | the correlated null for the directional hit counts and for the mean statistic, both tails and the sign split, and the measured cross-ticker and cross-model correlations | §6.2 |
 | `results/predictions/` | 595,224 predictions of the 30-ticker sweep | §6.2, §6.3, the cross-ticker figure |
 | `results/per_ticker_model.csv` | 200 rows of per-ticker, per-model metrics with the seeded benchmark | Table 2, §6.2 |
 | `results/fold_diagnostics.csv` | 357 fold-ticker rows of train/test return statistics and the KS test | §6.4 |

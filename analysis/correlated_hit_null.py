@@ -21,7 +21,9 @@ things.
    structure (rho_ticker across tickers, rho_model across models within a
    ticker) at rho_model in {0, 0.8, estimate}.
 
-Writes results/cross_ticker_correlation.csv and results/hit_count_null.csv.
+Writes results/cross_ticker_correlation.csv, results/hit_count_null.csv and
+results/mean_pt_null.csv (the direction of the statistics: both tails, the
+sign split, and the mean statistic with its null under the same grid).
 Needs results/predictions/ and results/comparators/ (committed) and
 results/per_ticker_model.csv (committed); no cache.
 
@@ -49,6 +51,7 @@ N_BOOT = 400
 BLOCK_DAYS = 21
 OUT_CORR = REPO / "results" / "cross_ticker_correlation.csv"
 OUT_NULL = REPO / "results" / "hit_count_null.csv"
+OUT_MEAN = REPO / "results" / "mean_pt_null.csv"
 
 
 def mean_offdiag(corr: pd.DataFrame) -> float:
@@ -151,6 +154,17 @@ def simulate_pool(n_tickers: int, n_models: int, rho_t: float, rho_m: float, obs
             "p_at_least_observed": float((counts >= observed).mean())}
 
 
+def simulate_mean(n_tickers: int, n_models: int, rho_t: float, rho_m: float, observed_mean: float, rng) -> dict:
+    """Null distribution of the mean PT statistic over the family, under the
+    same Kronecker equicorrelation as the hit count. One family (n_models=1)
+    or the pool."""
+    Lt, Lm = chol(n_tickers, rho_t), chol(n_models, rho_m)
+    e = rng.standard_normal((N_SIMS, n_models, n_tickers))
+    z = Lm @ e @ Lt.T
+    means = z.mean(axis=(1, 2))
+    return {"null_sd_of_mean": float(means.std(ddof=1)), "p_mean_at_least_observed": float((means >= observed_mean).mean())}
+
+
 def main() -> None:
     runs = pd.concat([load_runs(str(REPO / "results" / "predictions")), load_runs(str(REPO / "results" / "comparators"))], ignore_index=True)
     runs = runs[runs["model"].isin(MODELS)]
@@ -164,7 +178,9 @@ def main() -> None:
 
     per = pd.read_csv(REPO / "results" / "per_ticker_model.csv")
     observed = {m: int((per.loc[per["model"] == m, "PT_p"] < 0.05).sum()) for m in MODELS}
-    n_tickers = {m: int((per["model"] == m).sum()) for m in MODELS}
+    # Family size is the number of defined statistics: a comparator that predicted
+    # one direction on every day of a ticker has no PT statistic there.
+    n_tickers = {m: int(per.loc[per["model"] == m, "PT_p"].notna().sum()) for m in MODELS}
     rho_hit = {m: float(boot[f"PT statistic, cross-ticker, {m} (block bootstrap)"]) for m in MODELS}
     rho_model_daily = float(np.mean([v for k, v in boot.items() if "cross-model" in k]))
     rho_model_stat = float(corr.loc[corr["quantity"].str.startswith("per-ticker PT statistic"), "estimate"].mean())
@@ -179,6 +195,9 @@ def main() -> None:
             print(f"{m:<22} {n_tickers[m]} tests, observed {observed[m]}: rho_ticker={rho:<5} expected {r['expected']:.2f} sd {r['sd']:.2f} "
                   f"P(>= {observed[m]}) = {r['p_at_least_observed']:.3f}")
     k_all = sum(observed.values()); n_all = sum(n_tickers.values())
+    # The pool is simulated on the full 30 x 3 grid; the undefined positions are
+    # counted as non-hits in the observed count, which can only overstate the
+    # expected count and so works against significance.
     rho_t_est = round(float(np.mean(list(rho_hit.values()))), 3)
     for rho_t in (0.0, 0.3, 0.5, rho_t_est):
         for rho_m in (0.0, 0.8, round(rho_model_daily, 3)):
@@ -190,7 +209,38 @@ def main() -> None:
     print(f"\nestimated rho_ticker (bootstrapped PT-statistic correlation, mean over models): {rho_t_est}; "
           f"estimated rho_model: bootstrapped PT statistics within ticker {rho_model_daily:.3f}; cross-sectional {rho_model_stat:.3f}")
     pd.DataFrame(rows).to_csv(OUT_NULL, index=False)
-    print(f"wrote {OUT_CORR.relative_to(REPO)} and {OUT_NULL.relative_to(REPO)}")
+
+    # Direction. The one-sided test only counts the upper tail; report the lower
+    # tail, the sign split, and the mean statistic with its own correlated null.
+    # A comparator that predicts one direction for a whole test period has no PT
+    # statistic; those tickers are dropped here and counted in the table.
+    z_all = stats.norm.isf(per.loc[per["model"].isin(MODELS), "PT_p"].to_numpy(float))
+    n_undefined_all = int(np.isnan(z_all).sum())
+    z_all = z_all[~np.isnan(z_all)]
+    mean_rows = []
+    print("\ndirection of the PT statistics (upper tail z > 1.645, lower tail z < -1.645; 1.5 expected each per 30)")
+    for m in MODELS:
+        z = stats.norm.isf(per.loc[per["model"] == m, "PT_p"].to_numpy(float))
+        n_undefined = int(np.isnan(z).sum())
+        z = z[~np.isnan(z)]
+        base = {"family": m, "n_tests": int(len(z)), "n_undefined": n_undefined, "upper_tail": int((z > Z_HIT).sum()),
+                "lower_tail": int((z < -Z_HIT).sum()), "positive": int((z > 0).sum()), "mean_statistic": float(z.mean())}
+        for rho in (0.0, 0.3, 0.5, round(rho_hit[m], 3)):
+            r = simulate_mean(len(z), 1, rho, 0.0, float(z.mean()), rng)
+            mean_rows.append({**base, "rho_ticker": rho, "rho_model": np.nan, **r})
+        print(f"{m:<22} upper {base['upper_tail']}  lower {base['lower_tail']}  positive {base['positive']}/{len(z)}  mean z {z.mean():+.2f}  "
+              f"P(mean >= observed): rho 0 {mean_rows[-4]['p_mean_at_least_observed']:.3f}, 0.3 {mean_rows[-3]['p_mean_at_least_observed']:.3f}, "
+              f"0.5 {mean_rows[-2]['p_mean_at_least_observed']:.3f}, measured {mean_rows[-1]['p_mean_at_least_observed']:.3f}")
+    base = {"family": "all three models", "n_tests": int(len(z_all)), "n_undefined": n_undefined_all, "upper_tail": int((z_all > Z_HIT).sum()),
+            "lower_tail": int((z_all < -Z_HIT).sum()), "positive": int((z_all > 0).sum()), "mean_statistic": float(z_all.mean())}
+    for rho_t in (0.0, 0.3, 0.5, rho_t_est):
+        for rho_m in (0.0, 0.8, round(rho_model_daily, 3)):
+            r = simulate_mean(30, 3, rho_t, rho_m, float(z_all.mean()), rng)
+            mean_rows.append({**base, "rho_ticker": rho_t, "rho_model": rho_m, **r})
+            print(f"pooled 90: upper {base['upper_tail']} lower {base['lower_tail']} positive {base['positive']}/{base['n_tests']} mean z {z_all.mean():+.2f}  "
+                  f"rho_ticker={rho_t:<5} rho_model={rho_m:<5} null sd of mean {r['null_sd_of_mean']:.3f}  P(mean >= observed) = {r['p_mean_at_least_observed']:.3f}")
+    pd.DataFrame(mean_rows).to_csv(OUT_MEAN, index=False)
+    print(f"wrote {OUT_CORR.relative_to(REPO)}, {OUT_NULL.relative_to(REPO)} and {OUT_MEAN.relative_to(REPO)}")
 
 
 if __name__ == "__main__":

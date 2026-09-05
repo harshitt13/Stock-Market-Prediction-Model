@@ -149,9 +149,13 @@ predict something within a few basis points of it (§7.3), and the sign of the
 difference across tickers is a coin flip. The tree's 0 of 30 is a statement about
 a model that moved away from the mean and lost; the comparators' 12 and
 18 of 30 is a statement about models that did not move. Second, the comparators registered more directional hits at the uncorrected 5%
-level than a binomial count expects: the ridge 5 of 30 (AVGO, HD, MCD, NEE, XOM), the
-logistic 4 of 30 (JNJ, MSFT, NKE, UNH), and 11 of the 90 direction tests across
-the three models against 4.5 expected. A binomial reference treats those tests as
+level than a binomial count expects: the ridge 5 of its 28 defined tests
+(AVGO, HD, MCD, NEE, XOM), the logistic 4 of 28 (JNJ, MSFT, NKE, UNH), and 11
+of the 86 defined direction tests across the three models against 4.3
+expected. Four comparator runs have no direction test at all, because the
+model predicted "up" on every day of the ticker's test period (ridge on DIS, TSLA; logistic on GOOGL, HD);
+on those the comparator is the always-up rule, scores exactly the majority
+rate, and is counted as a non-hit. A binomial reference treats the tests as
 independent, and they are not: the thirty tickers are US equities over the
 same sixteen years on the same fold grid, and the three models are
 near-constant predictors fitted to identical data. We therefore replaced the
@@ -163,38 +167,64 @@ maximum |t| of §6.3 already treats its correlated strategies
 
 | Family | Observed hits | ρ = 0 (independent) | ρ = 0.3 | ρ = 0.5 | ρ as measured |
 |---|---|---|---|---|---|
-| Ridge, 30 tickers | 5 | P = 0.016 | 0.091 | 0.106 | 0.032 (ρ = 0.04) |
-| Logistic, 30 tickers | 4 | 0.061 | 0.137 | 0.137 | 0.075 (ρ = 0.02) |
-| All three models, 90 tests, ρ_model = 0.8 | 11 | 0.034 | 0.126 | 0.133 | 0.050 (ρ_ticker = 0.03) |
-| All three models, 90 tests, ρ_model as measured (0.20) | 11 | 0.008 | 0.100 | 0.129 | 0.016 |
+| Ridge, 28 tickers | 5 | P = 0.012 | 0.084 | 0.099 | 0.024 (ρ = 0.04) |
+| Logistic, 28 tickers | 4 | 0.049 | 0.123 | 0.128 | 0.062 (ρ = 0.02) |
+| All three models, 90 positions, ρ_model = 0.8 | 11 | 0.033 | 0.126 | 0.134 | 0.051 (ρ_ticker = 0.03) |
+| All three models, 90 positions, ρ_model as measured (0.20) | 11 | 0.008 | 0.099 | 0.131 | 0.017 |
 
-Under independence the expected count in ninety tests is 4.5 with standard
-deviation 2.1; at ρ_ticker = 0.3 and ρ_model = 0.8 it is still 4.5 but the
-standard deviation is 6.2, which is why the same eleven hits go from a
-one-in-two-hundred event to a one-in-eight one. Which correlation describes
-our design is an empirical question, and we measured it rather than assumed
-it. The daily realised returns of the thirty tickers correlate 0.36 on average
-and their signs 0.21, inside the 0.3 to 0.5 that is typical of US equities. But
-the quantity the hit count is made of is the PT statistic, and a moving-block
-bootstrap over calendar days (400 replicates, 21-day blocks, every statistic
-recomputed on each replicate) puts the correlation of the statistics
-themselves at only 0.02 to 0.04 across tickers and 0.20 across models within a
-ticker. The reason is in the statistic: Pesaran-Timmermann compares the hit
-rate with the rate implied by the two marginal sign frequencies, and a
-market-wide up day raises both the hit rate and the implied rate together, so
-the common market component that correlates the returns is largely netted
-out of the statistic. The measured correlations are therefore the ones that
-describe the design, and under them the ridge's 5 of 30 has probability 0.032,
-the logistic's 4 of 30 has 0.075, and the pooled 11 of 90 has 0.016 at the measured
-model correlation and 0.050 at 0.8. Under the return-level correlation
-of 0.3 to 0.5 that a reader might reasonably assume instead, every figure is
-0.09 or above. We report both. On the measured null the ridge's five and the
-pooled eleven are both events at the 5% level, one in thirty and one in
-sixty, and the pooled count reaches 0.050 only if the model correlation is
-taken to be 0.8 rather than the 0.20 we measured; on the assumed null
-neither is close to significance. Holm-Bonferroni across the ninety tests
-leaves no directional hit and no alpha hit under either reading, and no
-single ridge ticker survives Holm within its own thirty.
+The pool is simulated on the full 30 × 3 grid with the four undefined
+positions counted as non-hits, which can only raise the expected count and
+so works against significance. Under independence the expected count is
+4.5 with standard deviation 2.1; at ρ_ticker = 0.3 and ρ_model = 0.8
+it is still 4.5 but the standard deviation is 6.2, which is why
+the same eleven hits go from a one-in-two-hundred event to a one-in-eight
+one. Which correlation describes our design is an empirical question, and
+we measured it rather than assumed it. The daily realised returns of the
+thirty tickers correlate 0.36 on average and their signs 0.21, inside the 0.3 to
+0.5 that is typical of US equities. But the quantity the hit count is made
+of is the PT statistic, and a moving-block bootstrap over calendar days (400
+replicates, 21-day blocks, every statistic recomputed on each replicate)
+puts the correlation of the statistics themselves at only 0.02 to 0.04 across
+tickers and 0.20 across models within a ticker. The reason is in the
+statistic: Pesaran-Timmermann compares the hit rate with the rate implied by
+the two marginal sign frequencies, and a market-wide up day raises both the
+hit rate and the implied rate together, so the common market component that
+correlates the returns is largely netted out of the statistic. The measured
+correlations are therefore the ones that describe the design, and under
+them the ridge's 5 of 28 has probability 0.024, the logistic's 4 of 28 has
+0.062, and the pooled 11 has 0.017 at the measured model correlation and
+0.051 at 0.8. Under the return-level correlation of 0.3 to 0.5 that a reader
+might reasonably assume instead, every figure is 0.08 or above. We report
+both. On the measured null the ridge's five and the pooled eleven are events
+at the 5% level, roughly one in forty and one in sixty, and the pooled count
+reaches 0.051 only if the model correlation is taken to be 0.8 rather than
+the 0.20 we measured; on the assumed null neither is close to significance.
+Holm-Bonferroni across the ninety leaves no directional hit and no alpha hit
+under either reading, and no single ridge ticker survives Holm within its
+own family.
+
+Which way the hits point. The pipeline's PT p-value is one-sided in the
+upper tail, so every one of the eleven is by construction a positive
+association between predicted and realised direction; the question is
+whether the excess is one-sided or the tail of a symmetric spread. It is
+one-sided. Of the 86 defined statistics, 57 are positive, 11 exceed
++1.645 and 0 fall below −1.645 against about 4.3 expected in each tail,
+and their mean is +0.46 (`results/mean_pt_null.csv`). Under the same
+correlated null that mean has probability 0.003 at the measured correlations
+and 0.19 at 0.3 and 0.8: the same pattern as the count, a shift that is real
+on the measured null and invisible on the assumed one. This is the opposite
+sign from the tree's eight alpha hits, which were all negative and which we
+read as systematic underexposure (§6.3). But positive association is not
+the same as beating the majority class. Of the eleven, 8 have pooled
+directional accuracy above their majority rate and 4 do by fold median;
+the others (AVGO tree, MSFT logistic, NEE ridge) have a significant PT statistic and still lose to the always-up
+rule, because the association lives in the model's rare "down" calls, and a
+model that is long on 83% of days pays for every wrong "down" against a market
+that rose on 53% of them. The count therefore means a weak positive
+association on a few tickers, too small to convert into directional
+accuracy above the majority class on most of them and into a corrected
+alpha on any (the comparators' uncorrected alpha hits are two positive for
+the logistic and one of each sign for the ridge, none surviving Holm).
 
 The one within-model survivor of Holm is the logistic classifier on NKE:
 directional accuracy 52.92% against a majority rate of 50.78%, +2.14 points
