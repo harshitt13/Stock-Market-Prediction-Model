@@ -285,7 +285,9 @@ Regressing per-fold performance on the fold's KS statistic:
 | KS not significant | 238 | −0.0505 | 50.82 |
 | KS significant | 119 | **−0.1419** | 49.69 |
 
-Welch t = −4.10, p = 0.0001 on R²_OOS.
+Welch t = −4.10, p = 0.0001 on R²_OOS; Mann-Whitney p = 0.0003. The per-fold
+series and both tests are committed as `results/fold_r2_oos.csv` and
+`results/shift_tests.csv`.
 
 Shifted folds are ~2.8× worse. But KS explains **11.6%** of R²_OOS variance and
 only **1.2%** of DA variance: distribution shift explains *how much* the models
@@ -581,6 +583,7 @@ python src/main.py --ticker AAPL \
 | Seed | 42 (headline), 0–4 (variance study) |
 | Environment | `requirements-lock.txt` (`pip freeze` of the environment that produced the results) |
 | Meta-learner fits | `results/AAPL__frozen__seed42_meta_fits.csv` (per-fold ridge penalty, intercept, coefficients; `python analysis/persist_meta_fits.py`) |
+| Shift tests | `results/fold_r2_oos.csv`, `results/shift_tests.csv`, `results/tree_exposure.csv` (`python analysis/distribution_shift_and_exposure.py`; needs the gitignored `results/raw/`) |
 | Runtime | ~100 min, single machine, CPU only |
 
 The `--raw-csv` flag exists so a run reproduces exactly the data an earlier run

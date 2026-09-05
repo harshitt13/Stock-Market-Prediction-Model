@@ -108,9 +108,17 @@ def main():
 
     a = per_fold[per_fold["ks_reject_5pct"]]
     b = per_fold[~per_fold["ks_reject_5pct"]]
+    shift_tests = [{"test": "OLS " + r["outcome"], "statistic": r["t"], "p_value": r["p"],
+                    "slope": r["slope"], "r_squared": r["r_squared"], "n": r["n"]} for r in results]
     for col in ("r2_oos", "DA", "da_minus_majority"):
         t = stats.ttest_ind(a[col], b[col], equal_var=False)
         u = stats.mannwhitneyu(a[col], b[col])
+        common = {"mean_shifted": float(a[col].mean()), "mean_stable": float(b[col].mean()),
+                  "n_shifted": int(len(a)), "n_stable": int(len(b))}
+        shift_tests.append({"test": f"Welch t, {col}, shifted vs stable", "statistic": float(t.statistic),
+                            "p_value": float(t.pvalue), **common})
+        shift_tests.append({"test": f"Mann-Whitney U, {col}, shifted vs stable", "statistic": float(u.statistic),
+                            "p_value": float(u.pvalue), **common})
         print(f"\n  {col}: shifted {a[col].mean():+.4f} vs stable {b[col].mean():+.4f}"
               f"   diff {a[col].mean()-b[col].mean():+.4f}")
         print(f"    Welch t = {t.statistic:+.3f}, p = {t.pvalue:.4f}   |   "
@@ -159,8 +167,14 @@ def main():
     mean_pred = exposure["mean_pred_bps"].mean()
     print(f"\n    observed: mean {mean_pred:+.2f} bps, flip rate {flip:.3f}")
 
-    per_fold.to_csv(Path(__file__).parent / "per_fold_ks.csv", index=False)
-    exposure.to_csv(Path(__file__).parent / "tree_exposure.csv")
+    # Committed outputs: the per-fold series the KS regression and the shifted-
+    # versus-stable tests are computed from, the tests themselves, and the
+    # exposure decomposition. Sections 6.4 and 8.4 cite the first two.
+    per_fold.to_csv(REPO / "results" / "fold_r2_oos.csv", index=False)
+    pd.DataFrame(shift_tests).to_csv(REPO / "results" / "shift_tests.csv", index=False)
+    exposure.to_csv(REPO / "results" / "tree_exposure.csv")
+    print("wrote results/fold_r2_oos.csv (%d rows), results/shift_tests.csv (%d rows), results/tree_exposure.csv"
+          % (len(per_fold), len(shift_tests)))
 
 
 if __name__ == "__main__":

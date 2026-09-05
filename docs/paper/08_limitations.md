@@ -265,10 +265,12 @@ marginal distributions of training and test returns and ignores the
 features (`src/experiments.py`, `fold_return_diagnostics`). It explained
 11.6% of the variance in per-fold R²_OOS and 1.2% in directional accuracy
 (§6.4); we do not claim it as the mechanism for the absence of directional
-signal. **[unsourced]**: the Mann-Whitney p of 0.0003 for shifted against
-unshifted folds appears in the outline and is computed by the analysis
-script, but its output is not persisted and the series cannot be rebuilt
-from committed files, so we did not cite it.
+signal. The shifted-against-stable comparison also treats the 357
+fold-ticker pairs as independent observations, which they are not: the
+twelve folds of a ticker share its history, and the folds of different
+tickers overlap in calendar time. Welch's t and the Mann-Whitney test agree
+(p = 0.0001 and 0.0003, `results/shift_tests.csv`), but neither corrects for
+that dependence, and the effective sample size is smaller than 357.
 
 **Directional accuracy excludes near-flat days.** Days with a realised
 return within 10 basis points of zero were excluded, 7.0% of the AAPL
