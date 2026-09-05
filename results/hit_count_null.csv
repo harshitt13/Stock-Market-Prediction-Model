@@ -1,0 +1,25 @@
+family,n_tests,observed_hits,rho_ticker,rho_model,rho_source,expected,sd,p_at_least_observed
+Tree Ensemble,30,2,0.0,,assumed,1.502025,1.1941453133057747,0.447025
+Tree Ensemble,30,2,0.3,,assumed,1.495555,2.337401882264322,0.317035
+Tree Ensemble,30,2,0.5,,assumed,1.51178,3.152415093258596,0.25413
+Tree Ensemble,30,2,0.019,,estimate,1.501065,1.265210207656952,0.435875
+Ridge (returns),30,5,0.0,,assumed,1.50342,1.1967353360193398,0.015945
+Ridge (returns),30,5,0.3,,assumed,1.48661,2.320189135456013,0.09065
+Ridge (returns),30,5,0.5,,assumed,1.508285,3.1482869814122068,0.10565
+Ridge (returns),30,5,0.04,,estimate,1.50418,1.3546555662080733,0.03186
+Logistic (direction),30,4,0.0,,assumed,1.50265,1.1935200458938675,0.061415
+Logistic (direction),30,4,0.3,,assumed,1.50609,2.3379050966412653,0.13699
+Logistic (direction),30,4,0.5,,assumed,1.506555,3.1439189641444747,0.137035
+Logistic (direction),30,4,0.025,,estimate,1.49921,1.2899525943958092,0.075335
+all three models,90,11,0.0,0.0,assumed/assumed,4.502125,2.070042731384922,0.00527
+all three models,90,11,0.0,0.8,assumed/assumed,4.502665,2.886190317399,0.03365
+all three models,90,11,0.0,0.203,assumed/estimate,4.50121,2.1883675378378293,0.008495
+all three models,90,11,0.3,0.0,assumed/assumed,4.50312,4.047543968712495,0.085605
+all three models,90,11,0.3,0.8,assumed/assumed,4.49783,6.198139831900122,0.12642
+all three models,90,11,0.3,0.203,assumed/estimate,4.50893,4.546871850549357,0.09957
+all three models,90,11,0.5,0.0,assumed/assumed,4.490725,5.411929454388434,0.12374
+all three models,90,11,0.5,0.8,assumed/assumed,4.474655,8.294468133761388,0.13346
+all three models,90,11,0.5,0.203,assumed/estimate,4.46856,5.9942723647583716,0.12903
+all three models,90,11,0.028,0.0,estimate/assumed,4.498925,2.251982282678087,0.01056
+all three models,90,11,0.028,0.8,estimate/assumed,4.488615,3.2196602635737928,0.050385
+all three models,90,11,0.028,0.203,estimate/estimate,4.50323,2.425369864411384,0.016435

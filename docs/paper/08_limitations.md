@@ -183,7 +183,12 @@ file). This is why we report the fold median as the headline magnitude
 (§5.7, §6.1): a reader should take any pooled R²_OOS in this paper as
 uncertain by about ±0.05 to the choice of fold boundaries, the fold mean by
 about ±0.03 and the fold median by about ±0.015, and should rest on signs,
-counts and corrected p-values rather than on point values.
+counts and corrected p-values rather than on point values. This is one
+instance of a recurring finding: pooled statistics inherit their extreme
+folds. The aggregation table of §5.7 and Table 1 is the second (the headline
+magnitude was switched to the fold median for it), and the one directional
+hit that survives a within-model Holm correction in §6.2 is the third, with
+a pooled edge of +2.1 points over a fold median of −0.7.
 
 **The cross-ticker pooled magnitude is grid-conditional; the null is not.**
 Re-running the tree on the five tickers that carried every model, each on

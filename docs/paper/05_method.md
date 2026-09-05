@@ -427,7 +427,12 @@ magnitude, with the across-fold mean and standard deviation and the
 pooled value beside it, computed from the committed predictions by
 `analysis/fold_aggregates.py` (`results/fold_aggregates_headline.csv`,
 `results/fold_aggregates_sweep.csv`). Signs, counts and corrected
-p-values, on which the paper's claims rest, are reported under both.
+p-values, on which the paper's claims rest, are reported under both. The
+same fragility appears wherever a statistic is pooled over folds: the grid
+analysis of §8.3, where one fold moved pooled R²_OOS by 0.09, and the one
+directional hit that survives a within-model Holm correction in §6.2, whose
+pooled edge of +2.1 points sits over a fold median of −0.7. We treat the
+three as one recurring finding.
 
 **Equal predictive accuracy.** Diebold-Mariano (1995) on squared errors,
 each model against the zero-return baseline on exactly the days the two

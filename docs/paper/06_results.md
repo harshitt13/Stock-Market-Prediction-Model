@@ -148,25 +148,72 @@ scores by construction: the benchmark is the historical mean, the comparators
 predict something within a few basis points of it (§7.3), and the sign of the
 difference across tickers is a coin flip. The tree's 0 of 30 is a statement about
 a model that moved away from the mean and lost; the comparators' 12 and
-18 of 30 is a statement about models that did not move. Second, the
-comparators registered more uncorrected directional hits than chance: the ridge
-5 of 30 (AVGO, HD, MCD, NEE, XOM), which has probability 0.016 under the null, and
-the logistic 4 of 30 (JNJ, MSFT, NKE, UNH), probability 0.061; across all
-90 direction tests of the three models, 11 hits against 4.5 expected, a count with
-probability 0.0053 if the tests were independent, which they are not (same
-tickers, same days, and comparators whose forecasts are near-constant tilts in
-the same direction). Holm-Bonferroni across the 90 tests leaves 0 directional
-hit and 0 alpha hit. The one within-model survivor is the logistic classifier on NKE: directional accuracy
-52.92% against a majority rate of 50.78%, +2.14 points, PT p = 0.00075, Holm p = 0.021
-within the thirty; its fold-median directional edge on the same ticker is −0.66 points,
-so the pooled hit is carried by a minority of folds, and its alpha (t = +2.43, p = 0.015) does
-not survive Holm either. The
-comparators' mean directional edge was negative on both (−0.48 and −0.28 points),
-and they held the asset on 82% and 83% of days, so the economic
-picture is the historical mean's, not the tree's. We read the uncorrected
-excess as a weak, non-robust directional tilt on a few tickers that does not
-survive correction at the family level, and we report the count rather than
-the survivors.
+18 of 30 is a statement about models that did not move. Second, the comparators registered more directional hits at the uncorrected 5%
+level than a binomial count expects: the ridge 5 of 30 (AVGO, HD, MCD, NEE, XOM), the
+logistic 4 of 30 (JNJ, MSFT, NKE, UNH), and 11 of the 90 direction tests across
+the three models against 4.5 expected. A binomial reference treats those tests as
+independent, and they are not: the thirty tickers are US equities over the
+same sixteen years on the same fold grid, and the three models are
+near-constant predictors fitted to identical data. We therefore replaced the
+binomial with a simulated null of equicorrelated test statistics, one-sided
+at 5% as the pipeline's PT p-value is, in the same way that the expected
+maximum |t| of §6.3 already treats its correlated strategies
+(`analysis/correlated_hit_null.py`; `results/hit_count_null.csv`;
+`results/cross_ticker_correlation.csv`).
+
+| Family | Observed hits | ρ = 0 (independent) | ρ = 0.3 | ρ = 0.5 | ρ as measured |
+|---|---|---|---|---|---|
+| Ridge, 30 tickers | 5 | P = 0.016 | 0.091 | 0.106 | 0.032 (ρ = 0.04) |
+| Logistic, 30 tickers | 4 | 0.061 | 0.137 | 0.137 | 0.075 (ρ = 0.02) |
+| All three models, 90 tests, ρ_model = 0.8 | 11 | 0.034 | 0.126 | 0.133 | 0.050 (ρ_ticker = 0.03) |
+| All three models, 90 tests, ρ_model as measured (0.20) | 11 | 0.008 | 0.100 | 0.129 | 0.016 |
+
+Under independence the expected count in ninety tests is 4.5 with standard
+deviation 2.1; at ρ_ticker = 0.3 and ρ_model = 0.8 it is still 4.5 but the
+standard deviation is 6.2, which is why the same eleven hits go from a
+one-in-two-hundred event to a one-in-eight one. Which correlation describes
+our design is an empirical question, and we measured it rather than assumed
+it. The daily realised returns of the thirty tickers correlate 0.36 on average
+and their signs 0.21, inside the 0.3 to 0.5 that is typical of US equities. But
+the quantity the hit count is made of is the PT statistic, and a moving-block
+bootstrap over calendar days (400 replicates, 21-day blocks, every statistic
+recomputed on each replicate) puts the correlation of the statistics
+themselves at only 0.02 to 0.04 across tickers and 0.20 across models within a
+ticker. The reason is in the statistic: Pesaran-Timmermann compares the hit
+rate with the rate implied by the two marginal sign frequencies, and a
+market-wide up day raises both the hit rate and the implied rate together, so
+the common market component that correlates the returns is largely netted
+out of the statistic. The measured correlations are therefore the ones that
+describe the design, and under them the ridge's 5 of 30 has probability 0.032,
+the logistic's 4 of 30 has 0.075, and the pooled 11 of 90 has 0.016 at the measured
+model correlation and 0.050 at 0.8. Under the return-level correlation
+of 0.3 to 0.5 that a reader might reasonably assume instead, every figure is
+0.09 or above. We report both. On the measured null the ridge's five and the
+pooled eleven are both events at the 5% level, one in thirty and one in
+sixty, and the pooled count reaches 0.050 only if the model correlation is
+taken to be 0.8 rather than the 0.20 we measured; on the assumed null
+neither is close to significance. Holm-Bonferroni across the ninety tests
+leaves no directional hit and no alpha hit under either reading, and no
+single ridge ticker survives Holm within its own thirty.
+
+The one within-model survivor of Holm is the logistic classifier on NKE:
+directional accuracy 52.92% against a majority rate of 50.78%, +2.14 points
+pooled over its twelve folds, PT p = 0.00075. Its fold-median directional edge
+on the same ticker is −0.66 points: six of the twelve folds are negative, and
+the pooled figure is carried by the three largest positive folds (+4.7, +4.2
+and +3.8 points against a worst of −4.3). Its alpha (t = +2.43, p = 0.015) does
+not survive Holm either. This is the third instance in this paper of a pooled
+statistic inheriting its extreme folds, after the pooled R²_OOS that one fold
+on the 2020 low moved by 0.09 (§8.3) and the aggregation table on which we
+switched the headline magnitude to the fold median (§5.7, Table 1); we treat
+the three as one finding, and report NKE's fold median beside its pooled
+figure for that reason. The comparators' mean directional edge was negative
+on both (−0.48 and −0.28 points), and they held the asset on
+82% and 83% of days, so the economic picture is the historical mean's, not
+the tree's. We read the uncorrected excess as a weak directional tilt on a
+few tickers that is borderline under the correlation we measured, absent
+under the correlation a reader would assume, and gone under correction, and
+we report the count and the survivor rather than either alone.
 
 The pooled mean of Table 2 is grid-conditional. The sweep's AAPL run sits
 on a fold grid 49 trading days earlier than Table 1's, and its pooled
