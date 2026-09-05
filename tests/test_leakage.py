@@ -20,7 +20,6 @@ when leakage is injected.
 These tests are offline. They read ``tests/fixtures/aapl_raw.csv``.
 """
 
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -34,8 +33,8 @@ from fetch_data import (
     available_feature_columns,
     engineer_features,
 )
+from conftest import load_fixture
 
-FIXTURE_PATH = Path(__file__).parent / "fixtures" / "aapl_raw.csv"
 
 # Spread across the sample so a window-length-dependent bug cannot hide in one
 # quiet stretch.
@@ -48,11 +47,6 @@ LEADING_TRUNCATION_POINTS = [1, 3, 5]
 
 # A feature this correlated with tomorrow's return is a bug, not a discovery.
 MAX_ABS_TARGET_CORRELATION = 0.5
-
-
-def load_fixture() -> pd.DataFrame:
-    """Raw AAPL OHLCV plus macro levels. No network access."""
-    return pd.read_csv(FIXTURE_PATH, parse_dates=["Date"])
 
 
 def fixture_with_leading_macro_gap(length: int = LEADING_GAP_LENGTH) -> pd.DataFrame:

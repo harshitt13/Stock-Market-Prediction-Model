@@ -41,6 +41,7 @@ class Dataset:
 
     @property
     def n_features(self) -> int:
+        """Width of the feature matrix."""
         return self.X.shape[1]
 
     def subset(self, idx) -> "Dataset":

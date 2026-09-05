@@ -7,8 +7,9 @@ fitted one line too early sees the test fold and nothing crashes.
 
 from __future__ import annotations
 
+import os
 from dataclasses import replace
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Callable, List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -55,11 +56,25 @@ def fit_target_scaler(y_train) -> StandardScaler:
 
 
 def scale_targets(scaler: StandardScaler, y) -> np.ndarray:
+    """Standardise ``y`` with a scaler fitted by :func:`fit_target_scaler`."""
     return scaler.transform(np.asarray(y, dtype=float).reshape(-1, 1)).ravel()
 
 
 def unscale_targets(scaler: StandardScaler, y) -> np.ndarray:
+    """Invert :func:`scale_targets`, back to log-return units."""
     return scaler.inverse_transform(np.asarray(y, dtype=float).reshape(-1, 1)).ravel()
+
+
+def clip_fold(train_idx, test_idx, n: int) -> Tuple[np.ndarray, np.ndarray]:
+    """Drop any fold index at or beyond ``n`` rows.
+
+    Folds are built on the dataset length, which is one row shorter than the
+    raw frame because the last row has no target; a caller building folds on
+    the raw length would otherwise index past the end.
+    """
+    train_idx = np.asarray(train_idx)[np.asarray(train_idx) < n]
+    test_idx = np.asarray(test_idx)[np.asarray(test_idx) < n]
+    return train_idx, test_idx
 
 
 def default_folds(n: int, train_fraction: float = 0.8) -> List[Tuple[np.ndarray, np.ndarray]]:
@@ -97,6 +112,46 @@ def fold_predictions(
         y_true=dataset.y[row_index],
         y_pred=np.asarray(y_pred, dtype=float),
     )
+
+
+def sequence_demo_forecast(
+    predict_scaled_batch: Callable[[np.ndarray], np.ndarray],
+    x_scaler: StandardScaler,
+    y_scaler: StandardScaler,
+    feature_names: List[str],
+    history: pd.DataFrame,
+    lookback: int,
+    horizon: int,
+    label: str,
+    output_path: str,
+) -> pd.DataFrame:
+    """Recursive demo forecast for a lookback-window model.
+
+    The window slicing, scaling and unscaling were identical between the
+    LSTM and the Transformer; only the forward pass differs, and that is
+    passed in as ``predict_scaled_batch`` taking a (1, lookback, d) array of
+    scaled features and returning the model's scaled output. Never enters
+    a metrics table; see :data:`DEMO_FORECAST_CAVEAT`.
+    """
+    if history is None:
+        raise ValueError("demo_forecast_days requires demo_history (the raw frame)")
+
+    feature_names = list(feature_names)
+
+    def predict_next_return(engineered: pd.DataFrame) -> float:
+        window = engineered[feature_names].to_numpy(dtype=float)[-lookback:]
+        if len(window) < lookback:
+            raise ValueError(
+                f"demo forecast needs {lookback} engineered rows, got {len(window)}"
+            )
+        batch = x_scaler.transform(window).reshape(1, lookback, len(feature_names))
+        scaled = predict_scaled_batch(batch)
+        return float(unscale_targets(y_scaler, scaled)[0])
+
+    forecast = recursive_demo_forecast(history, predict_next_return, horizon, label=label)
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    forecast.to_csv(output_path, index=False)
+    return forecast
 
 
 def recursive_demo_forecast(

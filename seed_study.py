@@ -6,7 +6,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 SEEDS = [0, 1, 2, 3, 4]
 
 def run_seed(seed):
-    import torch, pandas as pd
+    import torch
     torch.set_num_threads(3)
     from experiments import run_single, save_run, run_path, cached_loader
     t0 = time.time()

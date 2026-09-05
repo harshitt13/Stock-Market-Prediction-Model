@@ -5,7 +5,6 @@ because an off-by-one in the target is the single easiest way to produce
 excellent-looking results from a broken pipeline.
 """
 
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -13,13 +12,9 @@ import pytest
 
 from dataset import Dataset, build_dataset, build_sequences
 from fetch_data import FEATURE_COLUMNS, engineer_features
+from conftest import load_fixture
 
-FIXTURE_PATH = Path(__file__).parent / "fixtures" / "aapl_raw.csv"
 LOOKBACK = 30
-
-
-def load_fixture() -> pd.DataFrame:
-    return pd.read_csv(FIXTURE_PATH, parse_dates=["Date"])
 
 
 @pytest.fixture(scope="module")

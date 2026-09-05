@@ -9,6 +9,5 @@ xgboost
 optuna
 pytest
 statsmodels
-seaborn
 scipy
 pyarrow

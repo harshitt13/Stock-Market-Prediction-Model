@@ -3,7 +3,6 @@ Tests for the walk-forward validation engine.
 """
 
 import numpy as np
-import pytest
 from walk_forward import WalkForwardSplitter, aggregate_fold_results
 
 

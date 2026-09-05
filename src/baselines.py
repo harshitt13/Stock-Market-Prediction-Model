@@ -17,10 +17,9 @@ import warnings
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
-import pandas as pd
 
 from dataset import Dataset
-from model_utils import assemble_predictions, default_folds, fold_predictions
+from model_utils import assemble_predictions, clip_fold, default_folds, fold_predictions
 
 Folds = List[Tuple[np.ndarray, np.ndarray]]
 
@@ -38,8 +37,7 @@ def _run_baseline(
 
     frames = []
     for fold_id, (train_idx, test_idx) in enumerate(fold_indices):
-        train_idx = np.asarray(train_idx)[np.asarray(train_idx) < n]
-        test_idx = np.asarray(test_idx)[np.asarray(test_idx) < n]
+        train_idx, test_idx = clip_fold(train_idx, test_idx, n)
         if len(test_idx) == 0:
             continue
         y_pred = np.asarray(predict_fold(train_idx, test_idx), dtype=float)
@@ -83,7 +81,7 @@ def historical_mean_baseline(
     """
     from evaluate import expanding_mean_benchmark
 
-    def predict(train_idx, test_idx):
+    def predict(train_idx, test_idx) -> np.ndarray:
         return expanding_mean_benchmark(dataset.y[test_idx], dataset.y[train_idx])
 
     return _run_baseline(dataset, fold_indices, "Historical mean", predict)
@@ -98,7 +96,7 @@ def ar1_baseline(
     at the close of day t, when the forecast for t+1 is made.
     """
 
-    def predict(train_idx, test_idx):
+    def predict(train_idx, test_idx) -> np.ndarray:
         train_idx = np.asarray(train_idx)
         # Regress y[i] on y[i-1] over the training rows that have a predecessor.
         usable = train_idx[train_idx > 0]
@@ -129,7 +127,7 @@ def arima_baseline(
     """
     from statsmodels.tsa.arima.model import ARIMA
 
-    def predict(train_idx, test_idx):
+    def predict(train_idx, test_idx) -> np.ndarray:
         y_train = dataset.y[train_idx]
         y_test = dataset.y[test_idx]
         try:
@@ -163,7 +161,7 @@ def random_sign_baseline(
     """
     rng = np.random.default_rng(seed)
 
-    def predict(train_idx, test_idx):
+    def predict(train_idx, test_idx) -> np.ndarray:
         scale = float(np.std(dataset.y[train_idx])) or 1.0
         return rng.choice([-1.0, 1.0], size=len(test_idx)) * scale
 

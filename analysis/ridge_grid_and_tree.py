@@ -10,7 +10,6 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from contracts import common_evaluation_window, restrict_all
 from dataset import build_dataset
 from evaluate import directional_accuracy, pesaran_timmermann
 from fetch_data import engineer_features
