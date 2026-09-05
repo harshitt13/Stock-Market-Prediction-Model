@@ -206,12 +206,19 @@ Long/flat on the predicted sign, 7.5bps round-trip, buy-and-hold on the same
 | Buy and hold | 0.0000 | — | — | 1.000 | 1.000 | 1.045 |
 
 **Zero strategies significant, corrected or uncorrected.** Simulating the null
-gives E[max‖t‖] = 1.84 across ten independent tests and 1.40 at ρ=0.8, so the
-tree's t = 1.71 is what no-alpha looks like when you look nine times.
+gives E[max‖t‖] = 1.84 across the nine tests if independent and 1.40 at ρ=0.8
+(P(max‖t‖ ≥ 1.71) = 0.56 and 0.27), so the tree's t = 1.71 is what no-alpha
+looks like when you look nine times.
 
 Raw Sharpe cannot distinguish skill from market exposure: `Historical mean` has
 beta 1.000 and exposure 1.000 — it *is* buy-and-hold, holding a long position
-99.9% of the time.
+99.9% of the time. The tree's net Sharpe of 1.166 against buy-and-hold's 1.045
+is the other face of the same point: it compares a position with beta 0.663
+and 61% exposure against one with beta 1 and 100%, so the gap is not a
+like-for-like measure of skill. The market-adjusted alpha is, and the table
+above (t = 1.71, Holm p = 0.698, inside the null's expected maximum) and the
+stress table below (t = 1.43 at 10 bps; negative under a one-day lag at any
+cost) show what that alpha is worth.
 
 **The tree's alpha survives neither stress:**
 
