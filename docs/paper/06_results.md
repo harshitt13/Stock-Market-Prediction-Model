@@ -13,22 +13,29 @@ Table 1 reports the headline configuration of §5.4: AAPL on the frozen file
 on the common evaluation window of 2520 forecast days from 2016-05-27 to
 2026-06-05 (`docs/baseline_after_refactor.csv`; README §3.1). Directional
 accuracy excludes the 7.0% of days on which the realised return was within
-10 basis points of zero, identically for every row.
+10 basis points of zero, identically for every row. For the magnitude we
+report three aggregations of the same per-fold R²_OOS series. The pooled
+value is a ratio of summed squared errors and is dominated by the fold with
+the largest errors (§5.7); the across-fold median is our headline; the mean
+and its standard deviation show the spread across folds.
 
-**Table 1.** AAPL, return target, common window, seed 42.
+**Table 1.** AAPL, return target, common window, seed 42. The headline
+magnitude is the across-fold median of R²_OOS over the ten common-window
+folds; the across-fold mean and standard deviation and the pooled value
+are beside it (`results/fold_aggregates_headline.csv`; §5.7 on why).
 
-| Model | DA (%) | Majority (%) | DA − majority (pp) | PT p | R²_OOS | RMSE (bps) |
-|---|---|---|---|---|---|---|
-| Tree Ensemble | 52.82 | 54.01 | −1.19 | 0.0586 | −0.02037 | 183.4 |
-| BiLSTM ᵃ | 52.47 | 54.01 | −1.54 | 0.7159 | −0.00499 | 182.0 |
-| Transformer ᵃ | 52.60 | 54.01 | −1.41 | 0.7065 | +0.00102 | 181.5 |
-| Hybrid meta (+VIX) ᵇ | 52.65 | 54.01 | −1.37 | 0.7480 | −0.00029 | 181.6 |
-| Hybrid meta (no VIX) ᵇ | 52.30 | 54.01 | −1.71 | 0.5926 | −0.00197 | 181.8 |
-| Zero return | 45.99 | 54.01 | −8.02 | — | −0.00276 | 181.8 |
-| Historical mean | 54.01 | 54.01 | 0.00 | — | 0.00000 | 181.6 |
-| AR(1) returns | 53.71 | 54.01 | −0.30 | 0.2355 | −0.00347 | 181.9 |
-| ARIMA(5,0,0) returns | 52.05 | 54.01 | −1.96 | 0.8962 | −0.00753 | 182.3 |
-| Random sign | 50.26 | 54.01 | −3.75 | 0.2745 | −0.89480 | 249.9 |
+| Model | DA (%) | Majority (%) | DA − majority (pp) | PT p | R²_OOS, fold median | R²_OOS, fold mean ± sd | R²_OOS, pooled | RMSE (bps) |
+|---|---|---|---|---|---|---|---|---|
+| Tree Ensemble | 52.82 | 54.01 | −1.19 | 0.0586 | **−0.0081** | −0.0152 ± 0.0326 | −0.02037 | 183.4 |
+| BiLSTM ᵃ | 52.47 | 54.01 | −1.54 | 0.7159 | **−0.0009** | −0.0043 ± 0.0113 | −0.00499 | 182.0 |
+| Transformer ᵃ | 52.60 | 54.01 | −1.41 | 0.7065 | **−0.0003** | +0.0011 ± 0.0074 | +0.00102 | 181.5 |
+| Hybrid meta (+VIX) ᵇ | 52.65 | 54.01 | −1.37 | 0.7480 | **+0.0011** | −0.0022 ± 0.0109 | −0.00029 | 181.6 |
+| Hybrid meta (no VIX) ᵇ | 52.30 | 54.01 | −1.71 | 0.5926 | **+0.0010** | −0.0016 ± 0.0120 | −0.00197 | 181.8 |
+| Zero return | 45.99 | 54.01 | −8.02 | — | **−0.0023** | −0.0037 ± 0.0063 | −0.00276 | 181.8 |
+| Historical mean | 54.01 | 54.01 | 0.00 | — | **0.0000** | 0.0000 ± 0.0000 | 0.00000 | 181.6 |
+| AR(1) returns | 53.71 | 54.01 | −0.30 | 0.2355 | **−0.0027** | −0.0028 ± 0.0063 | −0.00347 | 181.9 |
+| ARIMA(5,0,0) returns | 52.05 | 54.01 | −1.96 | 0.8962 | **−0.0082** | −0.0066 ± 0.0101 | −0.00753 | 182.3 |
+| Random sign | 50.26 | 54.01 | −3.75 | 0.2745 | **−0.8630** | −1.1199 ± 0.5787 | −0.89480 | 249.9 |
 
 ᵃ Single seed drawn from a distribution measured over five seeds (§6.5):
 across seeds the BiLSTM's directional accuracy ranged from 51.46 to 53.91%
@@ -41,10 +48,15 @@ We draw three observations from the table. First, no model beat the
 majority class. A rule that always predicted "up" scored 54.01% on this
 window, and the best model reached 52.82%; directional accuracy measured
 against 50% would have reported every row as a success. Second, no model's
-R²_OOS was meaningfully above zero. The only positive entry, the
-Transformer's +0.00102, sits inside a seed range that crosses zero, and the
-historical mean's 0.00000 is zero by construction because it is the
-benchmark. Third, no Diebold-Mariano test against the zero-return baseline
+R²_OOS was distinguishable from zero under any aggregation. Under the fold
+median the two meta-learner variants were the only entries above zero, at
++0.0011 and +0.0010, against a fold standard deviation of
+0.0109 and 0.0120; under the pooled aggregation the
+Transformer's +0.00102 was the only positive entry, and under the median it
+was −0.0003. Which model sits a thousandth above zero depends on how
+the folds are aggregated, and every such entry is inside a seed range or a
+fold standard deviation that crosses zero. The historical mean's zero is by
+construction, since it is the benchmark. Third, no Diebold-Mariano test against the zero-return baseline
 was significant on the 2520 shared days. Recomputed from the committed
 headline predictions (`results/headline/AAPL__frozen__seed42.parquet`,
 `src/evaluate.py`, `dm_table`), the smallest p-value among the models was
@@ -57,7 +69,8 @@ twelve folds, are in `docs/baseline_before_refactor.csv` (run at commit
 `3933168`; commit `d26ad59`). We reproduce the comparison in §4.1 and repeat
 only its headline here: the best model's R² on the price target was 0.9627
 against 0.9992 for the naive zero-change baseline, and its R²_OOS on the
-return target is −0.00029. The "before" columns report mean absolute
+return target is +0.0011 by fold median, −0.0022 ± 0.0109 by fold mean and
+−0.00029 pooled. The "before" columns report mean absolute
 percentage error and R² computed on a different target with the previous
 close available as a feature; they are not like-for-like with the "after"
 columns and were never intended to be. They are what the old protocol
@@ -78,13 +91,20 @@ that table.
 | | mean | median | sd | min | max |
 |---|---|---|---|---|---|
 | DA − majority (pp) | −2.17 | −2.41 | 1.33 | −4.16 | +0.15 |
-| R²_OOS | −0.116 | −0.096 | 0.074 | −0.343 | −0.032 |
+| R²_OOS, pooled | −0.116 | −0.096 | 0.074 | −0.343 | −0.032 |
+| R²_OOS, fold mean | −0.081 | −0.078 | 0.031 | −0.150 | −0.035 |
+| **R²_OOS, fold median** | **−0.047** | −0.042 | 0.021 | −0.107 | −0.014 |
 | PT p-value | 0.440 | 0.408 | 0.311 | 0.021 | 0.932 |
 | t(alpha) | −0.84 | −0.64 | 1.12 | −2.64 | +0.99 |
 | beta | 0.54 | 0.53 | 0.07 | 0.44 | 0.65 |
 | exposure | 0.54 | 0.52 | 0.05 | 0.45 | 0.63 |
 
-No ticker had positive R²_OOS (0 of 30; the best was −0.032). No ticker had
+No ticker had positive R²_OOS under any aggregation: 0 of 30 pooled (best
+−0.032), 0 of 30 by fold mean (best −0.035) and 0 of 30 by fold median
+(best −0.014) (`results/fold_aggregates_sweep.csv`). The fold on which each
+ticker scored worst was the same fold, fold 6, on 25 of 30 tickers, with a mean
+R²_OOS of −0.481 on that fold alone; on the sweep grid its test window opens on
+2020-03-20, the day after the March 2020 low (§8.3). No ticker had
 t(alpha) above 1.96 (0 of 30). Three tickers beat their majority class, by
 at most 0.15 percentage points (META, PFE, TSLA). Two tickers reached a
 Pesaran-Timmermann p below 0.05 (AVGO and META) against 1.5 expected by
@@ -96,13 +116,22 @@ across the thirty tickers, neither test retained a single hit (0 of 30 for
 both; `src/backtest.py`, `holm_bonferroni`).
 
 AAPL, the ticker of Table 1, was not cherry-picked: on the sweep it ranked
-15th of 30 on directional accuracy minus majority (−2.31 points) and 22nd of
-30 on R²_OOS (−0.121), so it was mid-pack on direction and below the median
-on magnitude. We note that the sweep's AAPL run sits on a fold grid 49
-trading days earlier than Table 1's and evaluates all twelve folds rather
-than the common window, and that its R²_OOS differs substantially from the
-frozen run's over the same twelve folds (−0.121 against −0.025); we treat
-this in §8 as a limitation rather than explain it away here.
+15th of 30 on directional accuracy minus majority (−2.31 points), 22nd of 30
+on pooled R²_OOS (−0.121) and 14th of 30 on fold-median R²_OOS
+(−0.0401), so it was mid-pack.
+
+The pooled mean of Table 2 is grid-conditional. The sweep's AAPL run sits
+on a fold grid 49 trading days earlier than Table 1's, and its pooled
+R²_OOS over the same twelve folds was −0.121 against −0.025 on the
+frozen grid; we separated the causes in §8.3 and found the fold grid
+responsible and the data irrelevant, with 80% of the gap in the one fold
+whose boundary falls on the March 2020 low. Re-running the tree on the five
+full-model tickers under the frozen grid moved their mean pooled R²_OOS from
+−0.122 to −0.032 while their mean fold median moved only from −0.033 to
+−0.030 (`results/grid_conditional_tickers.csv`). We therefore state the
+pooled mean of −0.116 as a property of this grid, report the fold-median
+mean of −0.047 as the magnitude, and note that the counts do not depend on
+the choice: no ticker was positive under either grid by either aggregation.
 
 ## 6.3 The negative alpha is a power demonstration
 

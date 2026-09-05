@@ -123,18 +123,88 @@ the one they annotate. We did not rerun the five seeds on the frozen grid;
 that would cost five further hour-long runs, and the offset is stated rather
 than hidden.
 
-**Results are sensitive to that grid and to the data vintage.** The same
-tree ensemble on AAPL, same code, same seed, scored R²_OOS of −0.025 over
-all twelve folds on the frozen grid (recomputed from
-`results/headline/AAPL__frozen__seed42.parquet` and `docs/frozen_aapl_raw.csv`)
-and −0.121 on the sweep grid (`results/per_ticker_model.csv`), with
-directional accuracy minus majority of −1.14 against −2.31 points. The two
-runs differ by a 49-row shift in fold boundaries and by a refetch. We do
-not know how much of the difference is attributable to each, and we did
-not run the experiment that would separate them. A reader should take the
-magnitude of any single R²_OOS in this paper as uncertain by at least that
-much, which is another reason the paper's claims rest on signs, counts and
-corrected p-values rather than on point values.
+**Pooled R²_OOS is sensitive to where the fold boundaries fall, and the
+sensitivity is concentrated in one fold.** The same tree ensemble on AAPL,
+same code, same seed, scored pooled R²_OOS of −0.025 over all twelve folds
+on the frozen grid and −0.121 on the sweep grid. We separated the two
+things that differ between those runs, the data file and the fold grid, by
+running the tree four ways (`analysis/grid_vs_data.py`;
+`results/grid_vs_data.csv`):
+
+| Run | Data | Fold grid (fold 0 opens) | Pooled | Fold mean | Fold median |
+|---|---|---|---|---|---|
+| A | frozen CSV | frozen (2014-05-29) | −0.0251 | −0.0204 | −0.0087 |
+| B | frozen CSV | sweep (2014-03-19) | −0.1109 | −0.0749 | −0.0376 |
+| C | sweep cache | frozen (2014-05-29) | −0.0244 | −0.0200 | −0.0226 |
+| D | sweep cache | sweep (2014-03-19) | −0.1208 | −0.0788 | −0.0401 |
+
+A and D reproduced the committed runs to 7e-18 and
+1e-17. The grid moved the pooled value by 0.086 (A to B) and
+0.096 (C to D); the data moved it by 0.0007 (A to C) and 0.010 (B to
+D). The data effect stayed under 0.01 on the pooled value and the fold mean,
+and reached 0.014 on the fold median, which reorders small values
+easily. The data difference itself is floating-point noise: on the 4,144
+shared dates the two files' closes differ by at most 7.6e-05 in absolute
+terms and 9.4e-07 relatively, on 2922 rows beyond 10⁻⁶ absolute and
+none beyond 10⁻⁶ relative; volume and the three macro series are identical
+(`results/grid_vs_data_rawdiff.csv`). A fifth run, the sweep cache with its
+49 extra early rows removed on the frozen grid, scored −0.0269 pooled, so
+neither the vendor's revisions nor the extra history matters.
+
+What matters is one fold. On the sweep grid, fold 6's training data ends on
+2020-03-19, within days of the March 2020 low, and its test window opens the
+next day on the rebound; that fold scored −0.554 on the frozen data (B) against
+−0.030 for the frozen grid's fold 6 (A), whose boundary falls on 2020-05-28
+after the recovery had begun. Fold 6 carried 80% of the summed per-fold
+gap between A and B. Because pooled R²_OOS is a ratio of summed squared
+errors, the highest-variance year dominates it, and a 49-day shift in where
+that year is cut moves the whole number (§5.7).
+
+To turn the two-point comparison into an error bar we ran the tree on the
+frozen CSV with every fold boundary moved earlier by 0, 12, 25, 37, 49 and
+63 trading days, twelve folds each time (`analysis/grid_offset_sweep.py`;
+`results/grid_offset_sweep.csv`):
+
+| Days earlier | Training rows, fold 0 | Fold 0 opens | Pooled | Fold mean ± sd | Fold median | Worst fold |
+|---|---|---|---|---|---|---|
+|   0 | 1008 | 2014-05-29 | −0.0251 | −0.0204 ± 0.036 | −0.0087 | 4 |
+|  12 | 996 | 2014-05-12 | −0.0255 | −0.0201 ± 0.035 | −0.0131 | 4 |
+|  25 | 983 | 2014-04-23 | −0.0270 | −0.0296 ± 0.043 | −0.0332 | 4 |
+|  37 | 971 | 2014-04-04 | −0.0378 | −0.0355 ± 0.049 | −0.0360 | 6 |
+|  49 | 959 | 2014-03-19 | −0.1109 | −0.0749 ± 0.154 | −0.0376 | 6 |
+|  63 | 945 | 2014-02-27 | −0.0214 | −0.0305 ± 0.042 | −0.0308 | 5 |
+
+Over the six offsets the pooled value ranged over 0.089, the fold mean over
+0.055 and the fold median over 0.029. The 49-day offset is a
+spike, not a trend: at 37 and 63 days the pooled value was −0.038 and
+−0.021, and the worst fold moved back off the crash. Four later offsets
+(12 to 49 days) gave pooled values between −0.025 and −0.023 (same
+file). This is why we report the fold median as the headline magnitude
+(§5.7, §6.1): a reader should take any pooled R²_OOS in this paper as
+uncertain by about ±0.05 to the choice of fold boundaries, the fold mean by
+about ±0.03 and the fold median by about ±0.015, and should rest on signs,
+counts and corrected p-values rather than on point values.
+
+**The cross-ticker pooled magnitude is grid-conditional; the null is not.**
+Re-running the tree on the five tickers that carried every model, each on
+its own sweep cache under the frozen grid as well as its sweep grid
+(`analysis/grid_conditional_tickers.py`; `results/grid_conditional_tickers.csv`):
+
+| Ticker | Pooled, sweep grid | Pooled, frozen grid | Median, sweep grid | Median, frozen grid | Worst fold (sweep / frozen) |
+|---|---|---|---|---|---|
+| AAPL | −0.1208 | −0.0244 | −0.0401 | −0.0226 | 6 / 4 |
+| JNJ | −0.0533 | −0.0240 | −0.0360 | −0.0330 | 6 / 7 |
+| JPM | −0.2018 | −0.0335 | −0.0566 | −0.0327 | 6 / 7 |
+| WMT | −0.0318 | −0.0310 | −0.0196 | −0.0270 | 1 / 8 |
+| XOM | −0.2042 | −0.0471 | −0.0140 | −0.0339 | 6 / 6 |
+
+The five-ticker mean pooled R²_OOS was −0.122 on the sweep grid and −0.032 on
+the frozen grid; the mean fold median was −0.033 and −0.030. The pooled
+mean of Table 2 is therefore a property of the sweep grid, and §6.2 states it
+as such. No ticker had positive R²_OOS under either grid by either
+aggregation (0 of 5 and 0 of 5 pooled; 0 of 5 and 0 of 5 by median), so the
+0-of-30 null does not depend on the grid. On the sweep grid the worst fold
+was fold 6 on 25 of the 30 tickers (§6.2).
 
 **Two artifact magnitudes were measured on the fixture.** The mismatched
 window (§4.3) and short window (§4.4) effects were measured on the

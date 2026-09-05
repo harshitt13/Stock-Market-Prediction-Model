@@ -393,6 +393,19 @@ log return. Every metric is also computed per fold, and the standard
 deviation across folds is reported beside the pooled value
 (`per_fold_metrics`, `summarize_across_folds`).
 
+A note on aggregation. Pooled R²_OOS is a ratio of sums of squared errors
+over every test day, so each fold enters it in proportion to its
+variance, and the statistic inherits the fragility of the
+highest-variance fold: moving one fold boundary through a market crash
+changes the pooled value by more than the effects under study (§6.2,
+§8.3). The across-fold mean and median weight every fold equally. We
+therefore report the across-fold median of R²_OOS as the headline
+magnitude, with the across-fold mean and standard deviation and the
+pooled value beside it, computed from the committed predictions by
+`analysis/fold_aggregates.py` (`results/fold_aggregates_headline.csv`,
+`results/fold_aggregates_sweep.csv`). Signs, counts and corrected
+p-values, on which the paper's claims rest, are reported under both.
+
 **Equal predictive accuracy.** Diebold-Mariano (1995) on squared errors,
 each model against the zero-return baseline on exactly the days the two
 share (`dm_table`; the reference is `Zero return`, `src/main.py`). The
