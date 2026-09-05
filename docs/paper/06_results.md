@@ -397,7 +397,8 @@ The Transformer's R²_OOS changed sign, from −0.0106 to +0.0010, so Table 1's
 only positive entry was seed 42 landing on one side of a distribution that
 straddles zero. And BiLSTM seed 4 reported a Pesaran-Timmermann p of 0.0137
 with directional accuracy 0.43 points above its majority class, the only
-configuration in the project to do so; its other four seeds gave p = 0.329,
+neural configuration in the project to do so (the linear comparators'
+directional hits are treated in §6.2); its other four seeds gave p = 0.329,
 0.521, 0.708 and 0.893, and the five Transformer seeds gave 0.201 to 0.696
 (recomputed from `results/seeds/` with `src/evaluate.py`). The study ran ten
 tests, and the probability of at least one hit at the 5% level among ten is

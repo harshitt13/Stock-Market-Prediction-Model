@@ -385,6 +385,15 @@ carries a `[VERIFY]` in the text and the table.
   description, and the compatibility argument that depended on it is
   withdrawn. If you have the reference, the paragraph in the draft can be
   reinstated once the task description is verified against the paper.
+  Update, 2026-09-06: from the ScienceDirect identifier supplied by the
+  author (S2772662226000135) the paper is Hu, L., and Shen, Y. (2026), "A
+  predictive analytics approach for forecasting global stock index returns
+  using deep learning techniques", *Decision Analytics Journal*, 18,
+  100685, doi:10.1016/j.dajour.2026.100685, gold open access. Its abstract
+  is served by no route open to us, so the task description (horizon,
+  cross-sectional outperformance, five indices, embargo and staleness
+  controls) remains unverified and the paragraph stays out; the article is
+  open access, so a reader with a browser can settle it in minutes.
 - The clause attributing Tejas et al.'s result to "high-capacity models on
   noisy data": their abstract states the result, not that mechanism.
 

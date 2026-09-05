@@ -318,7 +318,7 @@ digit is.
 machine and are given to the nearest ten minutes (README §9); the
 environment is recorded in `requirements-lock.txt`.
 
-**The test suite verifies the contract, not the models.** The 331 tests
+**The test suite verifies the contract, not the models.** The 341 tests
 (`README` §7; `python -m pytest --collect-only`) check leakage, the row
 contract, the metrics and the provenance of the committed artifacts. They
 do not and cannot check that a model is well specified.
