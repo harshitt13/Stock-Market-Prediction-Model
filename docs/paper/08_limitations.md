@@ -87,6 +87,33 @@ differed detectably from the one they were scored on (§6.4), and a staler
 model suffers more from that. Part of the poor performance we report may be
 staleness rather than absence of signal.
 
+**Sample length.** The sixteen years of daily history behind every run
+(2010-03-16 to 2026-09-03 in the frozen AAPL file, 4,144 raw rows and 4,094
+after feature warm-up; §5.1, §5.4) yield twelve annual folds under the
+headline configuration, ten of which enter the common evaluation window.
+Fold count rather than calendar length is the binding constraint on power:
+the Diebold-Mariano tests, the Holm correction and the across-fold
+aggregation of §5.7 all draw on the number of folds, so a shorter sample
+would have left fewer of them for those procedures, while a longer one
+would have placed pre-2010 market structure in every fold's training set,
+the expanding window never discarding its earliest rows, and would have
+deepened the survivorship bias of §8.2, the universe having been selected
+on tickers trading today. Whether the additional history helped is
+testable, and it did not measurably: regressing the tree's per-fold R²_OOS
+on its fold's training size across the 357 fold-ticker pairs gave no
+relationship at all, a slope of +2.0 × 10⁻⁶ per training row with t = +0.21
+and p = 0.838 (`results/fold_r2_oos.csv`). We do not read that as evidence
+that history is worthless, because fold index is simultaneously training
+size and calendar era under an expanding window and the two cannot be
+separated: a later fold trains on more rows and is also scored on a
+different market. The same regression on directional accuracy minus the
+majority class had a nominally significant negative slope (t = −2.06)
+explaining 1.2% of the variance, which we report for completeness and do
+not interpret, the same confound applying with equal force at a hundredth
+of the variance explained. We did not test a rolling window against the
+expanding one; whether discarding the earliest training rows at each refit
+would have improved either metric is a question this design cannot answer.
+
 **Two folds are never scored in the primary tables.** The common window
 drops folds 0 and 1, 504 forecast days from 2014-05-29 to 2016-05-26, from
 every primary comparison, because the meta-learner cannot forecast them
