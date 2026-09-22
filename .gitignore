@@ -6,6 +6,8 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+# the built paper is committed
+!docs/paper/build/
 *.egg
 
 # Virtual environments
@@ -33,3 +35,12 @@ images/*.png
 # OS
 .DS_Store
 Thumbs.db
+
+# Cached raw market data for the sweep. 86MB, regenerable in ~3 min with
+# `python src/fetch_universe.py`. The experiment OUTPUTS under
+# results/predictions/ are committed; this input cache is not.
+results/raw/
+
+# Tool caches
+.mypy_cache/
+.dist/

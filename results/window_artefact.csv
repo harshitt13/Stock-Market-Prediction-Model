@@ -1,0 +1,3 @@
+window,days,dm_stat,p_value,favours,significant_at_5pct
+fixture (2018-2021),420,2.321,0.0203,-VIX,True
+full span (2016-2026),2520,-0.595,0.5519,+VIX,False
