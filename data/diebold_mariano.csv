@@ -1,0 +1,10 @@
+Model,vs,DM stat,p-value,Favours,n shared days
+Tree Ensemble,Zero return,1.103,0.2701,Zero return,2520
+BiLSTM,Zero return,0.388,0.6977,Zero return,2520
+Transformer,Zero return,-1.35,0.1769,Transformer,2520
+Historical mean,Zero return,-1.358,0.1743,Historical mean,2520
+AR(1) returns,Zero return,0.22,0.8256,Zero return,2520
+"ARIMA(5, 0, 0) returns",Zero return,0.939,0.3475,Zero return,2520
+Random sign,Zero return,23.84,0.0,Zero return,2520
+Hybrid meta (+VIX),Zero return,-0.73,0.4652,Hybrid meta (+VIX),2520
+Hybrid meta (no VIX),Zero return,-0.258,0.7967,Hybrid meta (no VIX),2520
